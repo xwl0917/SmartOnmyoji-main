@@ -1,0 +1,62 @@
+# =====================================================================
+# SmartOnmyoji 运行依赖（Windows x64）
+# =====================================================================
+# 安装（建议在虚拟环境中，避免改动全局包）：
+#   py -3.13 -m venv .venv
+#   .\.venv\Scripts\Activate.ps1
+#   python -m pip install --upgrade pip
+#   python -m pip install -r requirements.txt
+#
+# 支持的解释器：CPython 3.9 - 3.13（64 位）
+#   源码语法兼容 3.7，但 Pillow 11 / NumPy 2 已不支持 3.7/3.8。
+#   若必须在 Python 3.7/3.8 上复现旧环境，请使用文末“旧版锁定”。
+#
+# 版本策略：使用“下限 + 上限”，由 pip 按当前解释器选择有 wheel 的最新版；
+#   需要完全可复现的环境时，安装成功后执行：
+#       python -m pip freeze > requirements-lock.txt
+#
+# 国内网络可换镜像（可选）：
+#   python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# 注意：不要同时安装 opencv-python 与 opencv-contrib-python，二者都提供 cv2。
+# =====================================================================
+
+# ---- 图像与数值 -----------------------------------------------------
+# SIFT 自 4.4 起已并入主包；4.12 的 wheel 为 cp37-abi3，可用于 3.9-3.13，
+# 且自带 NumPy 2 支持（其元数据要求 numpy>=2,<2.3，由 pip 自动解析）。
+# 暂不上 5.x：OpenCV 5 存在 API 变更，本项目未验证。
+opencv-python>=4.12,<5
+
+# 代码直接使用 numpy（点击模型、图像数组、fromfile/frombuffer）
+# 注意：opencv 4.12 的元数据要求 numpy<2.3；若已装更高版本，pip 会将其降级。
+numpy>=2.0,<3
+
+# ---- GUI ------------------------------------------------------------
+# 5.15.11 提供 Python 3.13 可用的 abi3 wheel；上限用于挡住未来大版本
+PyQt5>=5.15.11,<5.16
+
+# ---- 截图 / 点击 / 全局监听 ------------------------------------------
+# ImageGrab 用于“兼容-不可后台”模式的前台截图
+Pillow>=10.4,<12
+
+PyAutoGUI>=0.9.54
+
+# 右侧日志的全局鼠标点击监听
+pynput>=1.7.7
+
+# ---- Windows API ----------------------------------------------------
+# 提供 win32gui / win32ui / win32api / win32com / win32process / win32con
+pywin32>=306
+
+# =====================================================================
+# 打包工具（仅构建 exe 时需要，运行源码不需要）
+#   python -m pip install "pyinstaller>=6.11"
+#   python -m PyInstaller .\smart_onmyoji_start.spec --clean
+# =====================================================================
+# 旧版锁定（Python 3.7 / 3.8 参考；默认不安装，按需取消注释）
+# pywin32==308
+# opencv-python==4.5.4.60
+# PyQt5==5.15.4
+# PyAutoGUI==0.9.53
+# pillow==9.3.0
+# pynput==1.7.7
