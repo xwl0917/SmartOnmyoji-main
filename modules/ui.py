@@ -406,6 +406,26 @@ class Ui_MainWindow(object):
         layout.setContentsMargins(14, 20, 14, 14)
         layout.setSpacing(8)
 
+        trigger_row = QtWidgets.QHBoxLayout()
+        trigger_row.setSpacing(10)
+        self.temporary_trigger_image_label = QtWidgets.QLabel()
+        self.temporary_trigger_image_label.setObjectName(
+            "temporary_trigger_image_label"
+        )
+        trigger_row.addWidget(self.temporary_trigger_image_label)
+
+        self.temporary_trigger_image = QtWidgets.QComboBox()
+        self.temporary_trigger_image.setObjectName("temporary_trigger_image")
+        self.temporary_trigger_image.setSizeAdjustPolicy(
+            QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.temporary_trigger_image.setMinimumContentsLength(6)
+        self.temporary_trigger_image.setMinimumWidth(120)
+        self.temporary_trigger_image.setMaximumWidth(220)
+        self.temporary_trigger_image.addItem("")
+        trigger_row.addWidget(self.temporary_trigger_image, 1)
+        layout.addLayout(trigger_row)
+
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(10)
         self.temporary_task_target_label = QtWidgets.QLabel()
@@ -429,20 +449,6 @@ class Ui_MainWindow(object):
         self.temporary_task_rounds.setValue(1)
         row.addWidget(self.temporary_task_rounds)
         layout.addLayout(row)
-
-        trigger_row = QtWidgets.QHBoxLayout()
-        trigger_row.setSpacing(10)
-        self.temporary_trigger_image_label = QtWidgets.QLabel()
-        self.temporary_trigger_image_label.setObjectName(
-            "temporary_trigger_image_label"
-        )
-        trigger_row.addWidget(self.temporary_trigger_image_label)
-
-        self.temporary_trigger_image = QtWidgets.QComboBox()
-        self.temporary_trigger_image.setObjectName("temporary_trigger_image")
-        self.temporary_trigger_image.addItem("")
-        trigger_row.addWidget(self.temporary_trigger_image, 1)
-        layout.addLayout(trigger_row)
 
         mark_row = QtWidgets.QHBoxLayout()
         mark_row.setSpacing(10)
@@ -1009,7 +1015,7 @@ class Ui_MainWindow(object):
         self.temporary_task_target.addItem(_translate("MainWindow", "自定义"))
         self.temporary_task_rounds_label.setText(_translate("MainWindow", "轮数："))
         self.temporary_trigger_image_label.setText(
-            _translate("MainWindow", "触发图片：")
+            _translate("MainWindow", "触发临时任务图片：")
         )
         self.temporary_trigger_image.setItemText(
             0, _translate("MainWindow", "默认标记图片")
