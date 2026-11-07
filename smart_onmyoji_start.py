@@ -25,6 +25,7 @@ from win32gui import GetClientRect, GetParent, IsWindow, ScreenToClient, WindowF
 from modules.ModuleGetConfig import ReadConfigFile
 from modules.ModuleHandleSet import HandleSet
 from modules.ModuleGetTargetInfo import GetTargetPicInfo
+from modules.ModuleImageOrderDialog import ImageOrderDialog
 from modules.ModuleRunThread import MatchingThread, GetActiveWindowThread
 from modules.ModuleV5MultiOpen import V5MultiOpen, is_32bit_exe
 from modules.ui import Ui_MainWindow
@@ -230,6 +231,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         )
         self.config_set_btn.clicked.connect(self.__on_click_btn_config_set)
         self.targetpic_path_btn.clicked.connect(self.__on_click_btn_target_pic_folder_open)
+        self.image_order_btn.clicked.connect(self.__on_click_btn_image_order)
         self.btn_select_multi_open_path.clicked.connect(
             self.__on_click_btn_select_multi_open_path
         )
@@ -468,6 +470,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if custom_path:
             self.show_target_path.setText(custom_path)  # 显示路径
             self._refresh_main_target_images()
+
+    def __on_click_btn_image_order(self):
+        target_mode = self.select_target_path_mode_combobox.currentText()
+        custom_path = self.show_target_path.text() if target_mode == "自定义" else ""
+        folder_path = GetTargetPicInfo(
+            target_mode, custom_path
+        ).get_target_folder_path()
+        if not folder_path or not os.path.isdir(folder_path):
+            print("<br>图片识别顺序：请先选择有效的目标模板文件夹！")
+            return
+        dialog = ImageOrderDialog(folder_path, self)
+        if dialog.exec_():
+            print(
+                f"<br>图片识别顺序已保存：[ {folder_path} ]，"
+                "下次开始匹配时生效。"
+            )
 
     # ---- 程序多开（启动外部程序） ---------------------------------- #
     def _save_multi_open_config(self):
@@ -968,6 +986,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.set_priority.setEnabled(bool_val)
         self.config_set_btn.setEnabled(bool_val)
         self.targetpic_path_btn.setEnabled(bool_val)
+        self.image_order_btn.setEnabled(bool_val)
         self.screen_rate.setEnabled(bool_val)
         self.run_by_min.setEnabled(bool_val)
         self.run_by_rounds.setEnabled(bool_val)

@@ -19,7 +19,7 @@ class GetPosByTemplateMatch:
         super(GetPosByTemplateMatch, self).__init__()
 
     @staticmethod
-    def get_pos_by_template(screen_capture, target_pic, debug_status):
+    def get_pos_by_template(screen_capture, target_pic, debug_status, start_index=0):
         """
         模板匹配，速度快，但唯一的缺点是，改变目标窗体后，必须重新截取模板图片才能正确匹配
         :return: 返回坐标(x,y) 与opencv坐标系对应，以及与坐标相对应的图片在模板图片中的位置
@@ -32,8 +32,10 @@ class GetPosByTemplateMatch:
         pos = None
         val = 0.80  # 设置相似度
         i = 0
+        total = len(target_pic)
         # print("<br>正在匹配…")
-        for i in range(len(target_pic)):
+        for offset in range(total):
+            i = (int(start_index) + offset) % total
             # print(i)
             pos = GetPosByTemplateMatch.template_matching(screen_capture,
                                                           target_pic[i],
@@ -77,7 +79,7 @@ class GetPosBySiftMatch:
         super(GetPosBySiftMatch, self).__init__()
 
     @staticmethod
-    def get_pos_by_sift(target_sift, screen_sift, target_hw, target_img, screen_img, debug_status):
+    def get_pos_by_sift(target_sift, screen_sift, target_hw, target_img, screen_img, debug_status, start_index=0):
         """
         特征点匹配，准确度不好说，用起来有点难受，不是那么准确（比如有两个按钮的情况下），但是待检测的目标图片不受缩放、旋转的影响
         :return: 返回坐标(x,y) 与opencv坐标系对应，以及与坐标相对应的图片在所有模板图片中的位置
@@ -85,7 +87,9 @@ class GetPosBySiftMatch:
         # print("正在匹配…")
         pos = None
         i = 0
-        for i in range(len(target_img)):
+        total = len(target_img)
+        for offset in range(total):
+            i = (int(start_index) + offset) % total
             # print(i)
             pos = GetPosBySiftMatch.sift_matching(target_sift[i], screen_sift, target_hw[i], target_img[i], screen_img,
                                                   debug_status, i)

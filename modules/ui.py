@@ -254,6 +254,21 @@ class Ui_MainWindow(object):
         row.addWidget(self.targetpic_path_btn)
         layout.addLayout(row)
 
+        # ---- 行 5：图片识别顺序 ------------------------------------ #
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(10)
+        self.image_order_label = QtWidgets.QLabel()
+        self.image_order_label.setObjectName("image_order_label")
+        row.addWidget(self.image_order_label)
+
+        self.image_order_btn = QtWidgets.QPushButton()
+        self.image_order_btn.setObjectName("image_order_btn")
+        self.image_order_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.image_order_btn.setToolTip("调整当前目标图片文件夹内的识别顺序")
+        row.addWidget(self.image_order_btn)
+        row.addStretch(1)
+        layout.addLayout(row)
+
         # ---- 行 5：自定义路径 + 选择按钮 ---------------------------- #
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(10)
@@ -981,6 +996,8 @@ class Ui_MainWindow(object):
         self.show_handle_title.setPlaceholderText(
             _translate("MainWindow", "请输入窗体标题或选择窗体"))
         self.btn_select_handle.setText(_translate("MainWindow", "获取窗体"))
+        self.image_order_label.setText(_translate("MainWindow", "图片识别顺序："))
+        self.image_order_btn.setText(_translate("MainWindow", "调整顺序"))
         self.targetpic_path_btn.setText(_translate("MainWindow", "img文件夹"))
         self.label_18.setText(_translate("MainWindow", "坐标偏移："))
         self.label_19.setText(_translate("MainWindow", "个像素"))

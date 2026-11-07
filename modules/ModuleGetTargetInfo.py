@@ -5,6 +5,7 @@
 
 from os import path, walk
 from re import compile
+import json
 
 import numpy as np
 from numpy import uint8, fromfile
@@ -12,6 +13,102 @@ from numpy import uint8, fromfile
 import cv2
 from modules.ModuleImgProcess import ImgProcess
 from modules.ModuleGetConfig import ReadConfigFile
+
+
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+IMAGE_ORDER_FILE = "img_order.json"
+
+
+def _normalize_rel_path(rel_path):
+    return str(rel_path or "").replace("\\", "/").strip()
+
+
+def _natural_key(text):
+    return [
+        int(part) if part.isdigit() else part.lower()
+        for part in compile(r"(\d+)").split(_normalize_rel_path(text))
+    ]
+
+
+def list_target_image_files(folder_path, natural_sort=False):
+    """列出目标目录下的图片，返回绝对路径。
+
+    默认保持 os.walk 原顺序（兼容旧行为）；对话框可用 natural_sort=True
+    得到按文件名自然排序的列表。
+    """
+    img_file_path = []
+    for cur_dir, _sub_dir, included_file in walk(folder_path):
+        for file in included_file:
+            if path.splitext(file)[1].lower() in IMAGE_EXTENSIONS:
+                img_file_path.append(path.join(cur_dir, file))
+    if natural_sort:
+        img_file_path.sort(
+            key=lambda item: _natural_key(path.relpath(item, folder_path))
+        )
+    return img_file_path
+
+
+def load_image_order(folder_path):
+    """读取 img_order.json，返回相对路径列表；不存在或损坏时返回空列表。"""
+    order_path = path.join(folder_path, IMAGE_ORDER_FILE)
+    try:
+        with open(order_path, "r", encoding="utf-8-sig") as file:
+            data = json.load(file)
+    except Exception:
+        return []
+    if isinstance(data, dict):
+        data = data.get("order", [])
+    if not isinstance(data, list):
+        return []
+    return [str(item) for item in data if str(item).strip()]
+
+
+def apply_image_order(folder_path, image_paths):
+    """按 img_order.json 排序；未列出的新图片按自然顺序追加到末尾。
+
+    没有 img_order.json 时保持传入顺序，不改变旧版行为。
+    """
+    order = load_image_order(folder_path)
+    if not order:
+        return list(image_paths)
+
+    by_relative = {}
+    for image_path in image_paths:
+        by_relative[_normalize_rel_path(path.relpath(image_path, folder_path))] = image_path
+
+    ordered = []
+    used = set()
+    for relative in order:
+        key = _normalize_rel_path(relative)
+        if key in by_relative and key not in used:
+            ordered.append(by_relative[key])
+            used.add(key)
+
+    unlisted = []
+    for image_path in image_paths:
+        key = _normalize_rel_path(path.relpath(image_path, folder_path))
+        if key not in used:
+            unlisted.append(image_path)
+            used.add(key)
+    unlisted.sort(
+        key=lambda item: _natural_key(path.relpath(item, folder_path))
+    )
+    ordered.extend(unlisted)
+    return ordered
+
+
+def save_image_order(folder_path, relative_order):
+    """保存图片识别顺序到目标目录的 img_order.json。"""
+    order_path = path.join(folder_path, IMAGE_ORDER_FILE)
+    data = {
+        "order": [
+            _normalize_rel_path(relative)
+            for relative in relative_order
+            if _normalize_rel_path(relative)
+        ]
+    }
+    with open(order_path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
 
 
 class GetTargetPicInfo:
@@ -60,14 +157,14 @@ class GetTargetPicInfo:
             print("<br>未找到目标文件夹或图片地址！即将退出！")
             return None  # 脚本结束
         else:
-            for cur_dir, sub_dir, included_file in walk(folder_path):
-                if included_file:
-                    for file in included_file:
-                        if path.splitext(file)[1].lower() in (".jpg", ".jpeg", ".png"):
-                            img_file_path.append(cur_dir + "\\" + file)
+            img_file_path = list_target_image_files(folder_path)
             if len(img_file_path) == 0:
                 print("<br>未找到目标文件夹或图片地址！")
                 return None  # 脚本结束
+
+            # 有 img_order.json 时按界面保存的顺序加载；否则保持原有目录顺序
+            if load_image_order(folder_path):
+                img_file_path = apply_image_order(folder_path, img_file_path)
 
             # 通过图片地址获取每张图片的信息
             for i in range(len(img_file_path)):

@@ -45,6 +45,8 @@ class StartMatch:
         self.compressed_templates_value = None
         self._img_pos_cache = {}
         self._img_pos_warned = set()
+        # 上一次成功匹配的图片索引；下一次从它后面一张开始
+        self.last_matched_index = -1
 
     def _get_compressed_templates(self, target_img, compress_val):
         """按压缩率缓存模板，避免每帧都重新 resize 所有模板"""
@@ -89,6 +91,7 @@ class StartMatch:
         # 参数初始化
         target_modname = self.target_modname
         custom_target_path = self.custom_target_path
+        self.last_matched_index = -1
         reset_screen_scale_rate_cache()  # 本轮开始前重新读取界面上的屏幕缩放设置
         # 获取待检测目标图片信息
         print('<br>目标图片读取中……')
@@ -196,6 +199,10 @@ class StartMatch:
 
         target_img_sift, target_img_hw, target_img_name, target_img_file_path, target_img = target_info
         click_mod = click_mod1  # 默认使用精确点击模型
+        target_count = len(target_img_name)
+        start_index = (
+            (self.last_matched_index + 1) % target_count if target_count else 0
+        )
 
         # 获取截图
         print('<br>正在截图…')
@@ -230,6 +237,8 @@ class StartMatch:
 
         # 开始匹配
         print("<br>正在匹配…")
+        if debug_status:
+            print(f"<br>本轮从第 [ {start_index + 1} ] 张图片开始匹配")
         pos = None
         target_num = None
         target_img_tm = target_img
@@ -247,7 +256,9 @@ class StartMatch:
 
             # 开始匹配
             get_pos = GetPosByTemplateMatch()
-            pos, target_num = get_pos.get_pos_by_template(screen_img, target_img_tm, debug_status)
+            pos, target_num = get_pos.get_pos_by_template(
+                screen_img, target_img_tm, debug_status, start_index=start_index
+            )
 
         # 特征点匹配方法，准确度不能保证，但是不用适配不同设备
         elif match_method == '特征点匹配':
@@ -262,12 +273,17 @@ class StartMatch:
             get_pos = GetPosBySiftMatch()
             pos, target_num = get_pos.get_pos_by_sift(target_img_sift, screen_sift,
                                                       target_img_hw,
-                                                      target_img, screen_img, debug_status)
+                                                      target_img, screen_img, debug_status,
+                                                      start_index=start_index)
             del screen_sift  # 删除截图的特征点信息
 
         if pos and target_num is not None:
             print(f"<br>匹配成功! ")
             match_status = True
+            self.last_matched_index = target_num
+            if debug_status and target_count:
+                next_index = (target_num + 1) % target_count
+                print(f"<br>下一次从第 [ {next_index + 1} ] 张图片开始匹配")
 
             # 如果图片有压缩，需对坐标还原
             if compress_val != 1:
