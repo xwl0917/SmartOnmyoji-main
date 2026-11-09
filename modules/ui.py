@@ -16,6 +16,8 @@ SmartOnmyoji 主窗口 UI（重构版 + 控件尺寸放大）
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+from modules.ModuleFlowBody import FlowBodyEditor
+
 
 class Ui_MainWindow(object):
     """主窗口 UI 类，仅负责界面搭建。"""
@@ -27,6 +29,7 @@ class Ui_MainWindow(object):
         self._setup_window(MainWindow)
         self._build_base_group()       # groupBox_2：基础设置
         self._build_temporary_group()
+        self._build_flow_body_page()
         self._build_advanced_group()   # groupBox：高级设置
         self._build_left_panel()       # 左侧面板
         self._build_right_panel()      # 右侧面板（进度 + 日志）
@@ -232,6 +235,20 @@ class Ui_MainWindow(object):
         self.btn_select_handle.setObjectName("btn_select_handle")
         self.btn_select_handle.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         row.addWidget(self.btn_select_handle)
+        layout.addLayout(row)
+
+        # ---- 流程体开关 -------------------------------------------- #
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(10)
+        self.flow_body_enabled = QtWidgets.QCheckBox()
+        self.flow_body_enabled.setObjectName("flow_body_enabled")
+        self.flow_body_enabled.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.flow_body_enabled.setChecked(False)
+        self.flow_body_enabled.setToolTip(
+            "开启后按当前目标目录保存的流程体规则执行；关闭时使用原有识图顺序。"
+        )
+        row.addWidget(self.flow_body_enabled)
+        row.addStretch(1)
         layout.addLayout(row)
 
         # ---- 行 4：目标名称 + img 文件夹 ---------------------------- #
@@ -652,6 +669,9 @@ class Ui_MainWindow(object):
     # ================================================================== #
     #  左侧面板
     # ================================================================== #
+    def _build_flow_body_page(self):
+        self.flow_body_editor = FlowBodyEditor()
+
     def _build_left_panel(self):
         self.leftPanel = QtWidgets.QWidget()
         self.leftPanel.setObjectName("leftPanel")
@@ -666,6 +686,7 @@ class Ui_MainWindow(object):
         for page_name, content_widget in (
             ("base_settings_page", self.groupBox_2),
             ("temporary_settings_page", self.temporary_task_group),
+            ("flow_body_settings_page", self.flow_body_editor),
             ("advanced_settings_page", self.groupBox),
         ):
             page = QtWidgets.QWidget()
@@ -976,6 +997,7 @@ class Ui_MainWindow(object):
         self.run_by_min.setText(_translate("MainWindow", "按分钟"))
         self.run_by_rounds.setText(_translate("MainWindow", "按轮次"))
         self.label_3.setText(_translate("MainWindow", "目标名称："))
+        self.flow_body_enabled.setText(_translate("MainWindow", "启用流程体"))
         self.select_target_path_mode_combobox.setCurrentText(_translate("MainWindow", "御魂"))
         self.select_target_path_mode_combobox.setPlaceholderText(_translate("MainWindow", "请选择功能"))
         for idx, txt in enumerate(["御魂", "探索", "突破", "活动",
@@ -1025,7 +1047,10 @@ class Ui_MainWindow(object):
             1, _translate("MainWindow", "临时任务")
         )
         self.settings_tabs.setTabText(
-            2, _translate("MainWindow", "高级设置")
+            2, _translate("MainWindow", "流程体")
+        )
+        self.settings_tabs.setTabText(
+            3, _translate("MainWindow", "高级设置")
         )
         self.temporary_task_target_label.setText(_translate("MainWindow", "临时目标："))
         self.temporary_task_target.setItemText(0, _translate("MainWindow", "不启用"))

@@ -343,6 +343,7 @@ class MatchingThread(QtCore.QThread):
         temporary_custom_mark_image = (
             self.ui_info.temporary_custom_mark_image.currentData() or ""
         )
+        flow_body_enabled = self.ui_info.flow_body_enabled.isChecked()
 
         info = [connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min,
                 img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end,
@@ -357,7 +358,7 @@ class MatchingThread(QtCore.QThread):
         if other_setting[0] is True:
             set_config.writ_config_ui_info(info)
 
-        return connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min, img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end, debug_status, set_priority_status, interval_seconds_max, screen_scale_rate, times_mode, temporary_target_mode, temporary_rounds, temporary_custom_target_path, temporary_trigger_image, custom_mark_image, temporary_custom_mark_image
+        return connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min, img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end, debug_status, set_priority_status, interval_seconds_max, screen_scale_rate, times_mode, temporary_target_mode, temporary_rounds, temporary_custom_target_path, temporary_trigger_image, custom_mark_image, temporary_custom_mark_image, flow_body_enabled
 
     # 运行(入口)
     def run(self):
@@ -411,10 +412,16 @@ class MatchingThread(QtCore.QThread):
         temporary_trigger_image = info[21]
         custom_mark_image = info[22]
         temporary_custom_mark_image = info[23]
+        flow_body_enabled = info[24]
         debug_status = info[13]
         set_priority_status = info[14]
         interval_seconds = [info[4], info[15]]
         start_match = StartMatch(info[:12])
+        start_match.flow_body_enabled = flow_body_enabled
+        print(
+            "<br>流程体：%s"
+            % ("已启用" if flow_body_enabled else "未启用，使用原识别流程")
+        )
         loop_seconds = int(info[5] * 60)
         start_time = time.mktime(time.localtime())  # 开始时间的时间戳
         if run_times_mode == "按分钟计算":
@@ -593,6 +600,7 @@ class MatchingThread(QtCore.QThread):
                             else ""
                         )
                         temporary_start_match = StartMatch(temporary_info[:12])
+                        temporary_start_match.flow_body_enabled = flow_body_enabled
                         temporary_target_info = None
                         if (
                             temporary_target_mode == "自定义"

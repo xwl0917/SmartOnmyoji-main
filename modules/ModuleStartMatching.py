@@ -16,6 +16,13 @@ from modules.ModuleDoClick import DoClick
 from modules.ModuleGetConfig import ReadConfigFile
 from modules.ModuleGetPos import GetPosByTemplateMatch, GetPosBySiftMatch
 from modules.ModuleGetScreenCapture import GetScreenCapture, reset_screen_scale_rate_cache
+from modules.ModuleFlowBody import (
+    FLOW_ACTION_LABELS,
+    has_configured_next_image,
+    image_key,
+    load_flow_config,
+    resolve_next_index,
+)
 from modules.ModuleGetTargetInfo import GetTargetPicInfo
 from modules.ModuleHandleSet import HandleSet
 from modules.ModuleImgProcess import ImgProcess
@@ -47,6 +54,12 @@ class StartMatch:
         self._img_pos_warned = set()
         # 上一次成功匹配的图片索引；下一次从它后面一张开始
         self.last_matched_index = -1
+        self.next_match_index = None
+        self.strict_next_match = False
+        self.flow_body_enabled = False
+        self.flow_folder_path = ""
+        self.target_image_keys = []
+        self.flow_steps = {}
 
     def _get_compressed_templates(self, target_img, compress_val):
         """按压缩率缓存模板，避免每帧都重新 resize 所有模板"""
@@ -92,16 +105,45 @@ class StartMatch:
         target_modname = self.target_modname
         custom_target_path = self.custom_target_path
         self.last_matched_index = -1
+        self.next_match_index = None
+        self.strict_next_match = False
         reset_screen_scale_rate_cache()  # 本轮开始前重新读取界面上的屏幕缩放设置
         # 获取待检测目标图片信息
         print('<br>目标图片读取中……')
-        target_info = GetTargetPicInfo(target_modname, custom_target_path,
-                                       compress_val=1,
-                                       compute_sift=(self.match_method == '特征点匹配')).get_target_info  # 目标图片不压缩（本身就小），模板匹配时不预计算 SIFT
+        target_provider = GetTargetPicInfo(
+            target_modname,
+            custom_target_path,
+            compress_val=1,
+            compute_sift=(self.match_method == '特征点匹配'),
+        )
+        self.flow_folder_path = target_provider.get_target_folder_path() or ""
+        target_info = target_provider.get_target_info  # 目标图片不压缩（本身就小），模板匹配时不预计算 SIFT
         if target_info is None:
             return None
 
         target_img_sift, target_img_hw, target_img_name, target_img_file_path, target_img = target_info
+        self.target_image_keys = [
+            image_key(image_path, self.flow_folder_path)
+            for image_path in target_img_file_path
+        ]
+        flow_steps = (
+            load_flow_config(self.flow_folder_path)
+            if self.flow_body_enabled
+            else []
+        )
+        known_image_keys = set(self.target_image_keys)
+        self.flow_steps = {step["image"]: step for step in flow_steps}
+        for step in flow_steps:
+            if step["image"] not in known_image_keys:
+                print(
+                    "<br>流程体：识别图片不存在，忽略该规则：%s"
+                    % step["image"]
+                )
+            if step["next"] and step["next"] not in known_image_keys:
+                print(
+                    "<br>流程体：下一步图片不存在，改用原识别顺序：%s"
+                    % step["next"]
+                )
 
         print(f'<br>读取完成！共[ {len(target_img)} ]张图片\n{target_img_name}')
         print("<br>--------------------------------------------")
@@ -200,9 +242,13 @@ class StartMatch:
         target_img_sift, target_img_hw, target_img_name, target_img_file_path, target_img = target_info
         click_mod = click_mod1  # 默认使用精确点击模型
         target_count = len(target_img_name)
-        start_index = (
-            (self.last_matched_index + 1) % target_count if target_count else 0
-        )
+        if self.next_match_index is not None:
+            start_index = self.next_match_index
+        else:
+            start_index = (
+                (self.last_matched_index + 1) % target_count if target_count else 0
+            )
+        candidate_indices = [start_index] if self.strict_next_match else None
 
         # 获取截图
         print('<br>正在截图…')
@@ -257,7 +303,11 @@ class StartMatch:
             # 开始匹配
             get_pos = GetPosByTemplateMatch()
             pos, target_num = get_pos.get_pos_by_template(
-                screen_img, target_img_tm, debug_status, start_index=start_index
+                screen_img,
+                target_img_tm,
+                debug_status,
+                start_index=start_index,
+                candidate_indices=candidate_indices,
             )
 
         # 特征点匹配方法，准确度不能保证，但是不用适配不同设备
@@ -274,15 +324,37 @@ class StartMatch:
             pos, target_num = get_pos.get_pos_by_sift(target_img_sift, screen_sift,
                                                       target_img_hw,
                                                       target_img, screen_img, debug_status,
-                                                      start_index=start_index)
+                                                      start_index=start_index,
+                                                      candidate_indices=candidate_indices)
             del screen_sift  # 删除截图的特征点信息
 
         if pos and target_num is not None:
             print(f"<br>匹配成功! ")
             match_status = True
             self.last_matched_index = target_num
+            self.next_match_index = resolve_next_index(
+                target_num, self.target_image_keys, self.flow_steps
+            )
+            self.strict_next_match = has_configured_next_image(
+                target_num, self.target_image_keys, self.flow_steps
+            )
+            matched_image_key = image_key(
+                target_img_file_path[target_num], self.flow_folder_path
+            )
+            flow_step = self.flow_steps.get(matched_image_key, {})
+            flow_action = flow_step.get("action", "")
+            if flow_step:
+                next_image = flow_step.get("next", "")
+                print(
+                    "<br>流程体：图片 [ %s ]，操作 [ %s ]，下一步 [ %s ]"
+                    % (
+                        matched_image_key,
+                        FLOW_ACTION_LABELS[flow_action],
+                        next_image or "原识别顺序",
+                    )
+                )
             if debug_status and target_count:
-                next_index = (target_num + 1) % target_count
+                next_index = self.next_match_index
                 print(f"<br>下一次从第 [ {next_index + 1} ] 张图片开始匹配")
 
             # 如果图片有压缩，需对坐标还原
@@ -321,15 +393,27 @@ class StartMatch:
                 img_flag = "mark"
 
             # 开始点击
-            if flag_mark == 1 and img_flag == "mark":  # 标记为mark的图片已被点击，则不点击
+            if img_flag == "stop":
+                print(f"<br>已匹配图片 [ {target_img_name[target_num]} ] ，触发终止条件，脚本停止运行！！！")
+                stop_status = True
+            elif flow_action == "stop":
+                print(
+                    "<br>流程体：已匹配图片 [ %s ]，执行停止脚本。"
+                    % target_img_name[target_num]
+                )
+                stop_status = True
+            elif flag_mark == 1 and img_flag == "mark":  # 标记为mark的图片已被点击，则不点击
                 print(f"<br>此回合已点击图片 {target_img_name[target_num]}, flag: {img_flag}，跳过点击!")
                 match_status = False
             elif img_flag == "skip":
                 print(f"<br>检测到图片 {target_img_name[target_num]}, flag: {img_flag}，跳过点击!")
                 match_status = False
-            elif img_flag == "stop":
-                print(f"<br>已匹配图片 [ {target_img_name[target_num]} ] ，触发终止条件，脚本停止运行！！！")
-                stop_status = True
+            elif flow_action == "skip":
+                print(
+                    "<br>流程体：已匹配图片 [ %s ]，跳过点击。"
+                    % target_img_name[target_num]
+                )
+                match_status = False
             else:
                 if img_flag == "mark":
                     click_mod = ClickModSet.create_click_mod(20, size=(200, 2))  # 构造正态分布模型，只针对标记场景，所以仅小范围偏移

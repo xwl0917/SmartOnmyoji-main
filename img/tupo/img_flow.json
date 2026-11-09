@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "image": "r0.jpg",
+      "action": "click",
+      "next": "fight.jpg"
+    },
+    {
+      "image": "fight.jpg",
+      "action": "click",
+      "next": "标记.jpg"
+    },
+    {
+      "image": "标记.jpg",
+      "action": "click",
+      "next": "win_shengli.jpg"
+    },
+    {
+      "image": "win_shengli.jpg",
+      "action": "click",
+      "next": ""
+    }
+  ]
+}

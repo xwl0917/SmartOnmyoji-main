@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "image": "onebuttonstart.jpg",
+      "action": "click",
+      "next": "start.jpg"
+    },
+    {
+      "image": "start.jpg",
+      "action": "click",
+      "next": "get2.jpg"
+    },
+    {
+      "image": "get2.jpg",
+      "action": "click",
+      "next": "goto.jpg"
+    },
+    {
+      "image": "goto.jpg",
+      "action": "click",
+      "next": "seek.jpg"
+    },
+    {
+      "image": "seek.jpg",
+      "action": "stop",
+      "next": ""
+    }
+  ]
+}

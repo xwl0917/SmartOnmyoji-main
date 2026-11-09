@@ -848,6 +848,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
             combo.blockSignals(False)
 
+        self.flow_body_editor.set_target_folder(target_folder)
+
     def _update_temporary_task_controls(self):
         enabled = self.temporary_task_target.currentText() != "不启用"
         self.temporary_task_rounds.setEnabled(enabled)
@@ -957,6 +959,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.runmod_nomal.setEnabled(bool_val)
         self.runmod_compatibility.setEnabled(bool_val)
         self.debug.setEnabled(bool_val)
+        self.flow_body_enabled.setEnabled(bool_val)
         self.select_target_path_mode_combobox.setEnabled(bool_val)
         if self.rd_btn_windows_mod.isChecked():
             self.show_handle_title.setEnabled(bool_val)
@@ -987,6 +990,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.config_set_btn.setEnabled(bool_val)
         self.targetpic_path_btn.setEnabled(bool_val)
         self.image_order_btn.setEnabled(bool_val)
+        self.flow_body_editor.setEnabled(bool_val)
         self.screen_rate.setEnabled(bool_val)
         self.run_by_min.setEnabled(bool_val)
         self.run_by_rounds.setEnabled(bool_val)
