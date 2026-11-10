@@ -180,115 +180,6 @@ class MatchingThread(QtCore.QThread):
                 img_flag_by_name.setdefault(img_info["name"], img_info["flag"])
         return img_flag_by_name
 
-    def _run_temporary_task(
-        self,
-        start_match,
-        target_info,
-        temporary_rounds,
-        debug_status,
-        start_time,
-        loop_seconds,
-        click_mod1,
-        click_mod2,
-        flag_mark,
-        interval_seconds,
-        custom_mark_image="",
-    ):
-        try:
-            img_flag_by_name = self._load_img_flag_by_name(target_info)
-        except (OSError, ValueError, IndexError, TypeError) as error:
-            print(f"<br>临时任务读取图片标记失败：{error}")
-            return "failed"
-
-        if "start" not in img_flag_by_name.values():
-            print("<br>临时任务模板没有 start 标记，无法统计轮数，跳过临时任务。")
-            return "failed"
-
-        rounds = 0
-        previous_target_name = None
-        end_time = start_time + loop_seconds
-        deadline = time.monotonic() + 3600  # 临时任务最多运行 1 小时，避免无 start 命中时长期占用
-        print(
-            f"<br>临时任务开始：目标轮数 [ {temporary_rounds} ]，"
-            f"自定义 mark 图片 [ {custom_mark_image or '不自定义'} ]"
-        )
-
-        for i in range(20000):
-            if self.isPause:
-                self.cond.wait(self.mutex)
-            if self.isCancel:
-                return "cancelled"
-            if time.monotonic() > deadline:
-                print("<br>临时任务超过 1 小时上限，恢复主任务")
-                return "failed"
-
-            match_start_time = time.time()
-            now_time = time.mktime(time.localtime())
-            try:
-                results = start_match.start_match_click(
-                    i,
-                    target_info,
-                    debug_status,
-                    start_time,
-                    end_time,
-                    now_time,
-                    loop_seconds,
-                    click_mod1,
-                    click_mod2,
-                    flag_mark,
-                    custom_mark_image,
-                )
-                match_end_time = time.time()
-                run_status, match_status, stop_status, match_target_name, _ = results
-            except Exception as error:
-                print(f"<br>临时任务匹配异常：{error}；1秒后重试")
-                if not self._sleep_interruptible(1):
-                    return "cancelled"
-                continue
-
-            if stop_status:
-                print("<br>临时任务匹配到终止图片，主任务也将停止")
-                return "stopped"
-            if not run_status:
-                print("<br>临时任务运行异常，1秒后重试")
-                if not self._sleep_interruptible(1):
-                    return "cancelled"
-                continue
-
-            img_flag = img_flag_by_name.get(match_target_name)
-            if match_status and match_target_name == custom_mark_image:
-                img_flag = "mark"
-            if (
-                match_status
-                and img_flag == "start"
-                and match_target_name != previous_target_name
-            ):
-                rounds += 1
-                flag_mark = 0
-                print(f"<br>临时任务第 [ {rounds} / {temporary_rounds} ] 轮开始")
-            if img_flag in ("skip", "mark"):
-                flag_mark = 1
-
-            self.progress_val_signal.emit(
-                min(100, int(rounds / temporary_rounds * 100))
-            )
-            if rounds >= temporary_rounds:
-                print("<br>临时任务已完成，恢复主任务")
-                return "completed"
-
-            previous_target_name = match_target_name
-            match_once_time = match_end_time - match_start_time
-            interval_s = random.uniform(interval_seconds[0], interval_seconds[1])
-            jitter = uniform(-0.6, 0.6)
-            sleep_time = max(0, interval_s - match_once_time + jitter)
-            if not self._sleep_interruptible(sleep_time):
-                return "cancelled"
-            if not self._sleep_interruptible(random.uniform(0.05, 0.3)):
-                return "cancelled"
-
-        print("<br>临时任务达到最大匹配次数仍未完成，恢复主任务")
-        return "failed"
-
     # 获取GUI界面参数
     def get_ui_info(self):
         """
@@ -335,22 +226,13 @@ class MatchingThread(QtCore.QThread):
             custom_target_path = self.ui_info.show_target_path.text()
         set_priority_status = self.ui_info.set_priority.isChecked()  # 是否启用调试
         screen_scale_rate = float(self.ui_info.screen_rate.value())  # 屏幕压缩分辨率
-        temporary_target_mode = str(self.ui_info.temporary_task_target.currentText())
-        temporary_rounds = int(self.ui_info.temporary_task_rounds.value())
-        temporary_custom_target_path = self.ui_info.temporary_task_path.text()
-        temporary_trigger_image = self.ui_info.temporary_trigger_image.currentData() or ""
         custom_mark_image = self.ui_info.custom_mark_image.currentData() or ""
-        temporary_custom_mark_image = (
-            self.ui_info.temporary_custom_mark_image.currentData() or ""
-        )
         flow_body_enabled = self.ui_info.flow_body_enabled.isChecked()
 
         info = [connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min,
                 img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end,
                 debug_status, set_priority_status, interval_seconds_max, screen_scale_rate, times_mode,
-                temporary_target_mode, temporary_rounds, temporary_custom_target_path,
-                temporary_trigger_image, custom_mark_image,
-                temporary_custom_mark_image]
+                custom_mark_image]
 
         # 界面设置的参数写入配置文件
         set_config = ReadConfigFile()
@@ -358,7 +240,7 @@ class MatchingThread(QtCore.QThread):
         if other_setting[0] is True:
             set_config.writ_config_ui_info(info)
 
-        return connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min, img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end, debug_status, set_priority_status, interval_seconds_max, screen_scale_rate, times_mode, temporary_target_mode, temporary_rounds, temporary_custom_target_path, temporary_trigger_image, custom_mark_image, temporary_custom_mark_image, flow_body_enabled
+        return connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min, img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end, debug_status, set_priority_status, interval_seconds_max, screen_scale_rate, times_mode, custom_mark_image, flow_body_enabled
 
     # 运行(入口)
     def run(self):
@@ -406,13 +288,8 @@ class MatchingThread(QtCore.QThread):
             return
 
         run_times_mode = info[17]
-        temporary_target_mode = info[18]
-        temporary_rounds = info[19]
-        temporary_custom_target_path = info[20]
-        temporary_trigger_image = info[21]
-        custom_mark_image = info[22]
-        temporary_custom_mark_image = info[23]
-        flow_body_enabled = info[24]
+        custom_mark_image = info[18]
+        flow_body_enabled = info[19]
         debug_status = info[13]
         set_priority_status = info[14]
         interval_seconds = [info[4], info[15]]
@@ -462,7 +339,6 @@ class MatchingThread(QtCore.QThread):
         rounds = 0  # 当前回合数（通过图片的flag标记中的“start”标记，计算总回合数）
         flag_mark = 0  # 当前回合中，标记为”mark“的图片是否已被点击，一个回合只点击一次，0表示未点击，1表示已点击
         img_flag_by_name = None
-        marked_trigger_armed = True
 
         print("<br>初始化完成…")
 
@@ -553,17 +429,6 @@ class MatchingThread(QtCore.QThread):
                 if match_status and match_target_name == custom_mark_image:
                     img_flag = "mark"
 
-                is_marked_image = match_status and (
-                    match_target_name == "00_marked"
-                    or img_flag == "mark"
-                    or (
-                        temporary_trigger_image
-                        and match_target_name == temporary_trigger_image
-                    )
-                )
-                if not is_marked_image:
-                    marked_trigger_armed = True
-
                 # 根据图片标记判断回合数以及是否跳过后续点击
                 if match_status:
                     if debug_status:
@@ -578,80 +443,6 @@ class MatchingThread(QtCore.QThread):
                     flag_mark = 1
                     if debug_status:
                         print(f"<br>检测到跳过或标记图片，下一轮将跳过点击！")
-
-                if (
-                    is_marked_image
-                    and marked_trigger_armed
-                    and temporary_target_mode != "不启用"
-                ):
-                    marked_trigger_armed = False
-                    print(
-                        f"<br>检测到临时任务触发图片 [ {match_target_name} ]，"
-                        f"暂停主任务并切换到临时任务"
-                    )
-                    temporary_started_at = time.time()
-                    temporary_status = "failed"
-                    try:
-                        temporary_info = list(info[:18])
-                        temporary_info[1] = temporary_target_mode
-                        temporary_info[9] = (
-                            temporary_custom_target_path
-                            if temporary_target_mode == "自定义"
-                            else ""
-                        )
-                        temporary_start_match = StartMatch(temporary_info[:12])
-                        temporary_start_match.flow_body_enabled = flow_body_enabled
-                        temporary_target_info = None
-                        if (
-                            temporary_target_mode == "自定义"
-                            and not temporary_custom_target_path
-                        ):
-                            print("<br>尚未选择临时任务自定义文件夹，跳过临时任务")
-                        else:
-                            print(
-                                f"<br>临时任务配置：目标 [ {temporary_target_mode} ]，"
-                                f"轮数 [ {temporary_rounds} ]，"
-                                f"自定义 mark 图片 [ "
-                                f"{temporary_custom_mark_image or '不自定义'} ]"
-                            )
-                            temporary_target_info = temporary_start_match.set_init(
-                                set_priority_status
-                            )
-                            if temporary_target_info is None:
-                                print("<br>临时任务目标初始化失败，恢复主任务")
-                            else:
-                                temporary_status = self._run_temporary_task(
-                                    temporary_start_match,
-                                    temporary_target_info,
-                                    temporary_rounds,
-                                    debug_status,
-                                    temporary_started_at,
-                                    loop_seconds,
-                                    click_mod1,
-                                    click_mod2,
-                                    0,
-                                    interval_seconds,
-                                    temporary_custom_mark_image,
-                                )
-                    except Exception as error:
-                        print(f"<br>临时任务初始化异常：{error}；恢复主任务")
-                    finally:
-                        temporary_elapsed = time.time() - temporary_started_at
-                        start_time += temporary_elapsed
-                        end_time += temporary_elapsed
-                        now_time = time.mktime(time.localtime())
-
-                    if temporary_status == "cancelled":
-                        print("<br>临时任务已取消")
-                        self.progress_val_signal.emit(0)
-                        self.mutex.unlock()
-                        break
-                    if temporary_status == "stopped":
-                        print(f"<br>共完成 [ {rounds} ] 轮，临时任务触发终止条件")
-                        self.mutex.unlock()
-                        break
-                    if temporary_status == "failed":
-                        print("<br>临时任务未完成，已返回主任务")
 
                 # 记录点击日志(如果匹配成功)
                 if other_setting[15] and match_status:

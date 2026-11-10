@@ -23,7 +23,7 @@
     },
     {
       "image": "seek.jpg",
-      "action": "stop",
+      "action": "click",
       "next": ""
     }
   ]

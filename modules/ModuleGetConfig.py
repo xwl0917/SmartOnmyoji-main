@@ -43,31 +43,14 @@ class ReadConfigFile:
         interval_seconds_max = float(config_ini.get('ui_info', 'interval_seconds_max'))
         screen_scale_rate = config_ini.get('other_setting', 'screen_scale_rate')
         times_mode = config_ini.get('ui_info', 'times_mode')
-        temporary_target_mode = config_ini.get(
-            'ui_info', 'temporary_target_mode', fallback='不启用'
-        )
-        temporary_rounds = config_ini.getint(
-            'ui_info', 'temporary_rounds', fallback=1
-        )
-        temporary_custom_target_path = config_ini.get(
-            'ui_info', 'temporary_custom_target_path', fallback=''
-        )
-        temporary_trigger_image = config_ini.get(
-            'ui_info', 'temporary_trigger_image', fallback=''
-        )
         custom_mark_image = config_ini.get(
             'ui_info', 'custom_mark_image', fallback=''
-        )
-        temporary_custom_mark_image = config_ini.get(
-            'ui_info', 'temporary_custom_mark_image', fallback=''
         )
 
         return [connect_mod, target_path_mode, handle_title, click_deviation, interval_seconds, loop_min,
                 img_compress_val, match_method, run_mode, custom_target_path, process_num, handle_num, if_end,
                 debug_status, set_priority_status, interval_seconds_max, screen_scale_rate, times_mode,
-                temporary_target_mode, temporary_rounds, temporary_custom_target_path,
-                temporary_trigger_image, custom_mark_image,
-                temporary_custom_mark_image]
+                custom_mark_image]
 
     def read_config_target_path_files_name(self):
         config_ini = ConfigParser(interpolation=None)
@@ -235,12 +218,15 @@ class ReadConfigFile:
         config_ini.set("ui_info", "interval_seconds_max", info[15])
         config_ini.set("other_setting", "screen_scale_rate", info[16])
         config_ini.set("ui_info", "times_mode", info[17])
-        config_ini.set("ui_info", "temporary_target_mode", info[18])
-        config_ini.set("ui_info", "temporary_rounds", info[19])
-        config_ini.set("ui_info", "temporary_custom_target_path", info[20])
-        config_ini.set("ui_info", "temporary_trigger_image", info[21])
-        config_ini.set("ui_info", "custom_mark_image", info[22])
-        config_ini.set("ui_info", "temporary_custom_mark_image", info[23])
+        config_ini.set("ui_info", "custom_mark_image", info[18])
+        for option in (
+            "temporary_target_mode",
+            "temporary_rounds",
+            "temporary_custom_target_path",
+            "temporary_trigger_image",
+            "temporary_custom_mark_image",
+        ):
+            config_ini.remove_option("ui_info", option)
 
         # 写入文件（保留 UTF-8 BOM，避免 Windows 记事本等工具误判编码）
         with open(self.file_path, 'w', encoding="utf-8-sig") as config_file:

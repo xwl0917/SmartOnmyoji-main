@@ -4,8 +4,10 @@ import unittest
 from unittest import mock
 
 import numpy as np
+from PyQt5 import QtWidgets
 from modules.ModuleGetPos import GetPosBySiftMatch, GetPosByTemplateMatch
 from modules.ModuleFlowBody import (
+    FlowBodyEditor,
     has_configured_next_image,
     load_flow_config,
     resolve_next_index,
@@ -96,6 +98,39 @@ class FlowBodyConfigTests(unittest.TestCase):
         self.assertIsNone(position)
         self.assertEqual(image_index, 1)
         self.assertEqual([call[0][-1] for call in sift_match.call_args_list], [1])
+
+
+class FlowBodyEditorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.application = QtWidgets.QApplication.instance()
+        if cls.application is None:
+            cls.application = QtWidgets.QApplication([])
+
+    def test_added_rule_uses_previous_rule_next_image(self):
+        with tempfile.TemporaryDirectory() as folder_path:
+            image_paths = [
+                os.path.join(folder_path, "a.png"),
+                os.path.join(folder_path, "b.png"),
+            ]
+            save_flow_config(
+                folder_path,
+                [{"image": "b.png", "action": "click", "next": "a.png"}],
+            )
+            editor = FlowBodyEditor()
+            with mock.patch(
+                "modules.ModuleFlowBody.list_target_image_files",
+                return_value=image_paths,
+            ):
+                editor.set_target_folder(folder_path)
+
+            editor._add_rule()
+
+            self.assertEqual(editor.table.rowCount(), 2)
+            self.assertEqual(
+                editor.table.cellWidget(1, 0).currentData(), "a.png"
+            )
+            editor.close()
 
 
 if __name__ == "__main__":

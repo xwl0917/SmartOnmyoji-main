@@ -64,16 +64,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.interval_seconds_value_max = ui_info[15]
         self.screen_scale_rate_value = ui_info[16]
         self.times_mode = ui_info[17]
-        self.temporary_target_mode_value = ui_info[18] if len(ui_info) > 18 else "不启用"
-        self.temporary_rounds_value = ui_info[19] if len(ui_info) > 19 else 1
-        self.temporary_custom_target_path_value = (
-            ui_info[20] if len(ui_info) > 20 else ""
-        )
-        self.temporary_trigger_image_value = ui_info[21] if len(ui_info) > 21 else ""
-        self.custom_mark_image_value = ui_info[22] if len(ui_info) > 22 else ""
-        self.temporary_custom_mark_image_value = (
-            ui_info[23] if len(ui_info) > 23 else ""
-        )
+        self.custom_mark_image_value = ui_info[18] if len(ui_info) > 18 else ""
 
         # 日志批处理：每 150ms 统一写入一次，避免每条 print 都触发富文本布局
         self._log_buffer = []
@@ -133,9 +124,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.interval_seconds_max.setValue(float(self.interval_seconds_value_max))
         self.loop_min.setValue(float(self.loop_min_value))
         self.show_target_path.setText(self.custom_target_path_value)
-        self.temporary_task_path.setText(
-            self.temporary_custom_target_path_value
-        )
         self.screen_rate.setValue(float(self.screen_scale_rate_value))
         if self.run_mode_value == '正常-可后台':
             self.runmod_nomal.setChecked(True)
@@ -189,29 +177,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 设置界面上显示的匹配目标文件夹的选项名称
         for i in range(len(target_file_name_list)):
             self.select_target_path_mode_combobox.setItemText(i, target_file_name_list[i][0])
-            self.temporary_task_target.addItem(target_file_name_list[i][0])
-        temporary_target_index = self.temporary_task_target.findText(
-            self.temporary_target_mode_value
-        )
-        self.temporary_task_target.setCurrentIndex(
-            temporary_target_index if temporary_target_index >= 0 else 0
-        )
         self._refresh_main_target_images(
-            self.temporary_trigger_image_value,
             self.custom_mark_image_value,
         )
-        self._refresh_temporary_target_images(
-            self.temporary_custom_mark_image_value
-        )
-        self.temporary_task_rounds.setValue(int(self.temporary_rounds_value))
-        self.temporary_task_target.currentIndexChanged.connect(
-            self._update_temporary_task_controls
-        )
-        self.temporary_task_target.currentIndexChanged.connect(
-            lambda: self._refresh_temporary_target_images()
-        )
-        self._update_temporary_task_controls()
-        self._update_temporary_path_visibility()
 
         # 绑定信号
         self.btn_start.clicked.connect(self.__on_clicked_btn_begin)
@@ -223,12 +191,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             lambda: self.select_target_path_mode_btn_enable(self.select_target_path_mode_combobox.currentIndex()))
         self.btn_select_handle.clicked.connect(self.__on_click_btn_select_handle)
         self.select_targetpic_path_btn.clicked.connect(self.__on_click_btn_select_custom_path)
-        self.temporary_task_target.currentIndexChanged.connect(
-            self._update_temporary_path_visibility
-        )
-        self.temporary_task_path_btn.clicked.connect(
-            self.__on_click_btn_select_temporary_path
-        )
         self.config_set_btn.clicked.connect(self.__on_click_btn_config_set)
         self.targetpic_path_btn.clicked.connect(self.__on_click_btn_target_pic_folder_open)
         self.image_order_btn.clicked.connect(self.__on_click_btn_image_order)
@@ -805,11 +767,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.btn_select_v5_path.setEnabled(True)
         self._update_multi_open_mode()
 
-    def _refresh_main_target_images(
-        self, preferred_trigger_name=None, preferred_mark_name=None
-    ):
-        if preferred_trigger_name is None:
-            preferred_trigger_name = self.temporary_trigger_image.currentData()
+    def _refresh_main_target_images(self, preferred_mark_name=None):
         if preferred_mark_name is None:
             preferred_mark_name = self.custom_mark_image.currentData()
 
@@ -834,79 +792,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     if extension in (".jpg", ".png"):
                         image_names.add(os.path.splitext(filename)[0])
 
-        for combo, default_text, preferred_name in (
-            (self.temporary_trigger_image, "默认标记图片", preferred_trigger_name),
-            (self.custom_mark_image, "不自定义", preferred_mark_name),
-        ):
-            combo.blockSignals(True)
-            combo.clear()
-            combo.addItem(default_text, "")
-            for image_name in sorted(image_names):
-                combo.addItem(image_name, image_name)
-
-            selected_index = combo.findData(preferred_name or "")
-            combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
-            combo.blockSignals(False)
-
-        self.flow_body_editor.set_target_folder(target_folder)
-
-    def _update_temporary_task_controls(self):
-        enabled = self.temporary_task_target.currentText() != "不启用"
-        self.temporary_task_rounds.setEnabled(enabled)
-        self.temporary_trigger_image.setEnabled(enabled)
-        self.temporary_custom_mark_image.setEnabled(enabled)
-
-    def _update_temporary_path_visibility(self):
-        is_custom = self.temporary_task_target.currentText() == "自定义"
-        self.temporary_task_path.setVisible(is_custom)
-        self.temporary_task_path_btn.setVisible(is_custom)
-
-    def __on_click_btn_select_temporary_path(self):
-        current_path = self.temporary_task_path.text()
-        if not current_path or not os.path.isdir(current_path):
-            current_path = abspath(dirname(__file__)) + r'\img'
-        custom_path = QFileDialog.getExistingDirectory(
-            self, "选择临时任务模板文件夹", current_path
-        )
-        if custom_path:
-            self.temporary_task_path.setText(custom_path)
-            self._refresh_temporary_target_images()
-
-    def _refresh_temporary_target_images(self, preferred_mark_name=None):
-        if preferred_mark_name is None:
-            preferred_mark_name = self.temporary_custom_mark_image.currentData()
-
-        target_mode = self.temporary_task_target.currentText()
-        custom_path = (
-            self.temporary_task_path.text() if target_mode == "自定义" else ""
-        )
-        target_folder = GetTargetPicInfo(
-            target_mode, custom_path
-        ).get_target_folder_path()
-
-        image_names = set()
-        if target_folder and os.path.isdir(target_folder):
-            def report_walk_error(error):
-                print(f"<br>读取临时任务模板目录失败：{error}")
-
-            for _, _, filenames in os.walk(target_folder, onerror=report_walk_error):
-                for filename in filenames:
-                    if os.path.splitext(filename)[1].lower() in (
-                        ".jpg",
-                        ".jpeg",
-                        ".png",
-                    ):
-                        image_names.add(os.path.splitext(filename)[0])
-
-        combo = self.temporary_custom_mark_image
+        combo = self.custom_mark_image
         combo.blockSignals(True)
         combo.clear()
         combo.addItem("不自定义", "")
         for image_name in sorted(image_names):
             combo.addItem(image_name, image_name)
+
         selected_index = combo.findData(preferred_mark_name or "")
         combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
         combo.blockSignals(False)
+
+        self.flow_body_editor.set_target_folder(target_folder)
 
     # 配置文件修改按钮
     @staticmethod
@@ -972,15 +869,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.show_target_path.setEnabled(bool_val)
         self.select_targetpic_path_btn.setEnabled(bool_val)
         self.custom_mark_image.setEnabled(bool_val)
-        self.temporary_task_target.setEnabled(bool_val)
-        self.temporary_task_rounds.setEnabled(
-            bool_val and self.temporary_task_target.currentText() != "不启用"
-        )
-        self.temporary_trigger_image.setEnabled(
-            bool_val and self.temporary_task_target.currentText() != "不启用"
-        )
-        self.temporary_task_path.setEnabled(bool_val)
-        self.temporary_task_path_btn.setEnabled(bool_val)
         self.interval_seconds.setEnabled(bool_val)
         self.interval_seconds_max.setEnabled(bool_val)
         self.loop_min.setEnabled(bool_val)

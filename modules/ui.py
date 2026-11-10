@@ -28,7 +28,6 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         self._setup_window(MainWindow)
         self._build_base_group()       # groupBox_2：基础设置
-        self._build_temporary_group()
         self._build_flow_body_page()
         self._build_advanced_group()   # groupBox：高级设置
         self._build_left_panel()       # 左侧面板
@@ -431,92 +430,6 @@ class Ui_MainWindow(object):
 
         layout.addStretch(1)
 
-    def _build_temporary_group(self):
-        self.temporary_task_group = QtWidgets.QGroupBox()
-        self.temporary_task_group.setObjectName("temporary_task_group")
-        layout = QtWidgets.QVBoxLayout(self.temporary_task_group)
-        layout.setContentsMargins(14, 20, 14, 14)
-        layout.setSpacing(8)
-
-        trigger_row = QtWidgets.QHBoxLayout()
-        trigger_row.setSpacing(10)
-        self.temporary_trigger_image_label = QtWidgets.QLabel()
-        self.temporary_trigger_image_label.setObjectName(
-            "temporary_trigger_image_label"
-        )
-        trigger_row.addWidget(self.temporary_trigger_image_label)
-
-        self.temporary_trigger_image = QtWidgets.QComboBox()
-        self.temporary_trigger_image.setObjectName("temporary_trigger_image")
-        self.temporary_trigger_image.setSizeAdjustPolicy(
-            QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.temporary_trigger_image.setMinimumContentsLength(6)
-        self.temporary_trigger_image.setMinimumWidth(120)
-        self.temporary_trigger_image.setMaximumWidth(220)
-        self.temporary_trigger_image.addItem("")
-        trigger_row.addWidget(self.temporary_trigger_image, 1)
-        layout.addLayout(trigger_row)
-
-        row = QtWidgets.QHBoxLayout()
-        row.setSpacing(10)
-        self.temporary_task_target_label = QtWidgets.QLabel()
-        self.temporary_task_target_label.setObjectName("temporary_task_target_label")
-        row.addWidget(self.temporary_task_target_label)
-
-        self.temporary_task_target = QtWidgets.QComboBox()
-        self.temporary_task_target.setObjectName("temporary_task_target")
-        self.temporary_task_target.addItem("")
-        self.temporary_task_target.setMinimumWidth(120)
-        row.addWidget(self.temporary_task_target, 1)
-
-        self.temporary_task_rounds_label = QtWidgets.QLabel()
-        self.temporary_task_rounds_label.setObjectName("temporary_task_rounds_label")
-        row.addWidget(self.temporary_task_rounds_label)
-
-        self.temporary_task_rounds = QtWidgets.QSpinBox()
-        self.temporary_task_rounds.setObjectName("temporary_task_rounds")
-        self.temporary_task_rounds.setMinimumSize(QtCore.QSize(70, 30))
-        self.temporary_task_rounds.setRange(1, 20000)
-        self.temporary_task_rounds.setValue(1)
-        row.addWidget(self.temporary_task_rounds)
-        layout.addLayout(row)
-
-        mark_row = QtWidgets.QHBoxLayout()
-        mark_row.setSpacing(10)
-        self.temporary_custom_mark_image_label = QtWidgets.QLabel()
-        self.temporary_custom_mark_image_label.setObjectName(
-            "temporary_custom_mark_image_label"
-        )
-        mark_row.addWidget(self.temporary_custom_mark_image_label)
-
-        self.temporary_custom_mark_image = QtWidgets.QComboBox()
-        self.temporary_custom_mark_image.setObjectName(
-            "temporary_custom_mark_image"
-        )
-        self.temporary_custom_mark_image.addItem("")
-        mark_row.addWidget(self.temporary_custom_mark_image, 1)
-        layout.addLayout(mark_row)
-
-        path_row = QtWidgets.QHBoxLayout()
-        path_row.setSpacing(10)
-        self.temporary_task_path = QtWidgets.QLineEdit()
-        self.temporary_task_path.setObjectName("temporary_task_path")
-        self.temporary_task_path.setReadOnly(True)
-        self.temporary_task_path.setPlaceholderText("选择临时任务模板文件夹…")
-        path_row.addWidget(self.temporary_task_path, 1)
-
-        self.temporary_task_path_btn = QtWidgets.QPushButton()
-        self.temporary_task_path_btn.setObjectName("temporary_task_path_btn")
-        self.temporary_task_path_btn.setCursor(
-            QtGui.QCursor(QtCore.Qt.PointingHandCursor)
-        )
-        path_row.addWidget(self.temporary_task_path_btn)
-        layout.addLayout(path_row)
-
-        # 页面被 QScrollArea 拉伸到视口高度时，避免各行被平均拉开
-        layout.addStretch(1)
-
     # ================================================================== #
     #  高级设置：groupBox
     # ================================================================== #
@@ -685,7 +598,6 @@ class Ui_MainWindow(object):
 
         for page_name, content_widget in (
             ("base_settings_page", self.groupBox_2),
-            ("temporary_settings_page", self.temporary_task_group),
             ("flow_body_settings_page", self.flow_body_editor),
             ("advanced_settings_page", self.groupBox),
         ):
@@ -1037,38 +949,15 @@ class Ui_MainWindow(object):
         self.label_21.setText(_translate("MainWindow", "进度计算："))
         self.run_by_min.setText(_translate("MainWindow", "按分钟"))
         self.run_by_rounds.setText(_translate("MainWindow", "按轮次"))
-        self.temporary_task_group.setTitle(
-            _translate("MainWindow", "标记触发的临时任务")
-        )
         self.settings_tabs.setTabText(
             0, _translate("MainWindow", "基础设置")
         )
         self.settings_tabs.setTabText(
-            1, _translate("MainWindow", "临时任务")
+            1, _translate("MainWindow", "流程体")
         )
         self.settings_tabs.setTabText(
-            2, _translate("MainWindow", "流程体")
+            2, _translate("MainWindow", "高级设置")
         )
-        self.settings_tabs.setTabText(
-            3, _translate("MainWindow", "高级设置")
-        )
-        self.temporary_task_target_label.setText(_translate("MainWindow", "临时目标："))
-        self.temporary_task_target.setItemText(0, _translate("MainWindow", "不启用"))
-        self.temporary_task_target.addItem(_translate("MainWindow", "自定义"))
-        self.temporary_task_rounds_label.setText(_translate("MainWindow", "轮数："))
-        self.temporary_trigger_image_label.setText(
-            _translate("MainWindow", "触发临时任务图片：")
-        )
-        self.temporary_trigger_image.setItemText(
-            0, _translate("MainWindow", "默认标记图片")
-        )
-        self.temporary_custom_mark_image_label.setText(
-            _translate("MainWindow", "临时任务 mark 图片：")
-        )
-        self.temporary_custom_mark_image.setItemText(
-            0, _translate("MainWindow", "不自定义")
-        )
-        self.temporary_task_path_btn.setText(_translate("MainWindow", "选择文件夹"))
 
         # ---- 右侧日志与进度 ----
         self.label_13.setText(_translate("MainWindow", "运行日志："))

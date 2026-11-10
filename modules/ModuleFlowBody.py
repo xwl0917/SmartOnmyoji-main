@@ -294,9 +294,18 @@ class FlowBodyEditor(QtWidgets.QWidget):
         if not self.image_keys:
             return
         row = self.table.rowCount()
+        image = self.image_keys[0]
+        if row:
+            next_image = self.table.cellWidget(row - 1, 2).currentData()
+            used_images = {
+                self.table.cellWidget(index, 0).currentData()
+                for index in range(row)
+            }
+            if next_image in self.image_keys and next_image not in used_images:
+                image = next_image
         self._insert_rule(
             row,
-            {"image": self.image_keys[0], "action": "click", "next": ""},
+            {"image": image, "action": "click", "next": ""},
         )
         self.table.selectRow(row)
 
