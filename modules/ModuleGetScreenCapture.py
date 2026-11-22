@@ -8,6 +8,10 @@ from os.path import abspath, dirname
 from subprocess import Popen, PIPE
 
 import numpy as np
+from modules.ModuleWin32Com import configure_com_cache
+
+configure_com_cache()
+
 import win32com.client
 from numpy import frombuffer, uint8, array
 from win32con import SRCCOPY

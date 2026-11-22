@@ -1,3 +1,5 @@
 Release
 .venv-build/
 selfcheck.log
+gen_py/
+.venv/
