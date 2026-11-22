@@ -54,12 +54,6 @@
         "flag": "start"
     },
     {
-        "name":"0_end",
-        "real_pos": [],
-        "click_pos":[],
-        "flag": "stop"
-    },
-   {
         "name":"1_end",
         "real_pos": [],
         "click_pos":[],
