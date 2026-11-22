@@ -8,6 +8,9 @@ from os.path import abspath, dirname
 import cv2
 
 
+_SIFT_DETECTOR = None
+
+
 class ImgProcess:
     """图像处理，传入的图片格式必须是cv2的格式"""
 
@@ -68,9 +71,10 @@ class ImgProcess:
         :param img: 传入cv2格式的图片，获取特征点信息
         :return: 返回特征点信息
         """
-        # 初始化SIFT探测器
-        sift = cv2.SIFT_create()
-        # cv.xfeatures2d.BEBLID_create(0.75)  # 已过时用法
-        kp, des = sift.detectAndCompute(img, None)
+        # SIFT 探测器无状态，模块级单例复用，避免每帧重建
+        global _SIFT_DETECTOR
+        if _SIFT_DETECTOR is None:
+            _SIFT_DETECTOR = cv2.SIFT_create()
+        kp, des = _SIFT_DETECTOR.detectAndCompute(img, None)
         img_sift = [kp, des]
         return img_sift

@@ -4,7 +4,20 @@
 # @MIT License Copyright (c) 2022 ACE
 
 from configparser import ConfigParser
+import os
 from os.path import abspath, dirname, exists
+
+# other_setting 按 config.ini 的 mtime_ns 缓存：匹配周期内 DoClick/HandleSet
+# 每次构造都会读取，避免重复解析整个配置文件；文件改动后自动刷新。
+_OTHER_SETTING_CACHE = None
+_OTHER_SETTING_CACHE_MTIME = None
+
+
+def _invalidate_other_setting_cache():
+    """写盘后调用：丢弃 other_setting 缓存，下次读取重新解析"""
+    global _OTHER_SETTING_CACHE, _OTHER_SETTING_CACHE_MTIME
+    _OTHER_SETTING_CACHE = None
+    _OTHER_SETTING_CACHE_MTIME = None
 
 
 class ReadConfigFile:
@@ -78,11 +91,21 @@ class ReadConfigFile:
         return target_file_name_list
 
     def read_config_other_setting(self):
-        config_ini = ConfigParser(interpolation=None)
+        global _OTHER_SETTING_CACHE, _OTHER_SETTING_CACHE_MTIME
 
         # 校验文件是否存在
         if not exists(self.file_path):
             raise FileNotFoundError("配置文件不存在！")
+
+        try:
+            file_mtime = os.stat(self.file_path).st_mtime_ns
+        except OSError:
+            file_mtime = None
+        cache_key = (os.path.normcase(os.path.abspath(self.file_path)), file_mtime)
+        if _OTHER_SETTING_CACHE is not None and cache_key == _OTHER_SETTING_CACHE_MTIME:
+            return list(_OTHER_SETTING_CACHE)
+
+        config_ini = ConfigParser(interpolation=None)
 
         config_ini.read(self.file_path, encoding="utf-8-sig")  # 读配置文件
 
@@ -112,7 +135,10 @@ class ReadConfigFile:
                          ex_click, screen_scale_rate, if_match_then_stop, stop_target_img_name.split(","),
                          if_match_5times_stop, save_click_log, target_deviation, success_match_then_wait.split(",")]
 
-        return other_setting
+        # 调用方均为只读，缓存供匹配周期内的高频读取复用
+        _OTHER_SETTING_CACHE = other_setting
+        _OTHER_SETTING_CACHE_MTIME = cache_key
+        return list(other_setting)
 
     def read_multi_open_info(self):
         """读取“程序多开”配置：[multi_open] program_path / instance_count / interval_seconds / isolate / use_v5 / v5_path"""
@@ -185,6 +211,7 @@ class ReadConfigFile:
         config_ini.set("multi_open", "v5_path", str(v5_path or ""))
         with open(self.file_path, 'w', encoding="utf-8-sig") as config_file:
             config_ini.write(config_file)
+        _invalidate_other_setting_cache()
 
     def writ_config_ui_info(self, info):
         config_ini = ConfigParser(comment_prefixes='/', allow_no_value=True, interpolation=None)  # 保留注释
@@ -231,6 +258,7 @@ class ReadConfigFile:
         # 写入文件（保留 UTF-8 BOM，避免 Windows 记事本等工具误判编码）
         with open(self.file_path, 'w', encoding="utf-8-sig") as config_file:
             config_ini.write(config_file)
+        _invalidate_other_setting_cache()
 
     @staticmethod
     def str_to_bool(str_val):
