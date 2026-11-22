@@ -7,7 +7,32 @@
         {
           "image": "0_fight.jpg",
           "action": "skip",
-          "next": "00_marked.png"
+          "next": "r0.jpg"
+        },
+        {
+          "image": "r0.jpg",
+          "action": "click",
+          "next": "ok.jpg"
+        },
+        {
+          "image": "ok.jpg",
+          "action": "click",
+          "next": "biaoji.jpg"
+        },
+        {
+          "image": "biaoji.jpg",
+          "action": "esc",
+          "next": "queren.jpg"
+        },
+        {
+          "image": "queren.jpg",
+          "action": "click",
+          "next": "fail_shibai.jpg"
+        },
+        {
+          "image": "fail_shibai.jpg",
+          "action": "click",
+          "next": ""
         }
       ],
       "next_node": ""

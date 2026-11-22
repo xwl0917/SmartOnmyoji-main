@@ -11,7 +11,7 @@
         },
         {
           "image": "start.jpg",
-          "action": "skip",
+          "action": "click",
           "next": ""
         }
       ],
@@ -50,6 +50,33 @@
           "image": "get.jpg",
           "action": "click",
           "next": ""
+        }
+      ],
+      "next_node": ""
+    },
+    {
+      "name": "进入封印界面",
+      "steps": [
+        {
+          "image": "get2.jpg",
+          "action": "click",
+          "next": "goto.jpg"
+        },
+        {
+          "image": "goto.jpg",
+          "action": "click",
+          "next": ""
+        }
+      ],
+      "next_node": ""
+    },
+    {
+      "name": "map",
+      "steps": [
+        {
+          "image": "get.jpg",
+          "action": "click",
+          "next": "goto.jpg"
         }
       ],
       "next_node": ""
