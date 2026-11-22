@@ -3,13 +3,12 @@
 # @Version : Python3.7.6
 # @MIT License Copyright (c) 2022 ACE
 
-import os
 import re
 import winsound
 from os import system
 from re import search
 from os.path import abspath, dirname
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, TimeoutExpired
 from time import sleep
 
 from win32api import OpenProcess, CloseHandle
@@ -28,7 +27,7 @@ class HandleSet:
     def __init__(self, handle_title, handle_num):
         super(HandleSet, self).__init__()
         self.handle_pos = None
-        self.handle_title = handle_title 
+        self.handle_title = handle_title or ""
         self.handle_num = int(handle_num)
         self.handle_pid = None
         set_config = ReadConfigFile()  # 读取配置文件
@@ -39,7 +38,9 @@ class HandleSet:
         """通过句柄标题获取句柄编号"""
         # 如果编号不为0或者标题为空，说明是设置的多开，此时直接校验编号即可
         if self.handle_num != 0 or self.handle_title == '':
-            if search("雷电模拟器", self.get_handle_title(self.handle_num)):
+            # 标题与编号都为空时 get_handle_title 返回 None，兜底为空串避免 search 报错
+            title = self.get_handle_title(self.handle_num) or ""
+            if search("雷电模拟器", title):
                 self.handle_num = FindWindowEx(self.handle_num, None, None, "TheRender")  # 兼容雷电模拟器后台点击
                 return None if self.handle_num == 0 else self.handle_num
             else:
@@ -149,16 +150,25 @@ class HandleSet:
         print("<br>-----------------------------")
 
     @staticmethod
-    def deal_cmd(cmd):
-        """执行cmd命令"""
-        pi = Popen(cmd, shell=True, stdout=PIPE)
-        return pi.stdout.read()
+    def deal_cmd(cmd, timeout=15):
+        """执行cmd命令；超时则终止进程并返回空字节串，避免 adb 卡死拖住工作线程"""
+        process = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+        try:
+            stdout, _stderr = process.communicate(timeout=timeout)
+            return stdout
+        except TimeoutExpired:
+            process.kill()
+            try:
+                process.communicate(timeout=3)
+            except Exception:
+                pass
+            return b""
 
     @staticmethod
     def get_screen_size(device_id):
         """获取手机屏幕大小"""
         command = abspath(dirname(__file__)) + rf'\adb.exe -s {device_id} shell wm size'
-        result_str = os.popen(command).read()
+        result_str = HandleSet.deal_cmd(command, timeout=10).decode("utf-8", errors="replace")
         size_str = re.findall(r'\d+x\d+', result_str)
         size = size_str[0].split("x")
         return size

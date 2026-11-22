@@ -488,8 +488,17 @@ class StartMatch:
         else:
             print("<br>匹配失败！")
             match_status = False
+            # 失败时 target_num 只是最后扫描的索引，不能当作命中图片返回，
+            # 置 None 避免上层把无关图片名当作命中结果污染 skip/mark 标记
+            target_num = None
 
-        return run_status, match_status, stop_status, target_img_name[target_num], click_pos
+        return (
+            run_status,
+            match_status,
+            stop_status,
+            target_img_name[target_num] if target_num is not None else None,
+            click_pos,
+        )
 
     def start_match_click(self, i, target_info, debug_status, start_time, end_time, now_time, loop_seconds, click_mod1,
                           click_mod2, flag_mark, custom_mark_image=""):
