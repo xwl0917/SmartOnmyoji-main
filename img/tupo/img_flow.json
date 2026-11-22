@@ -2,42 +2,6 @@
   "version": 2,
   "nodes": [
     {
-      "name": "失败3次",
-      "steps": [
-        {
-          "image": "0_fight.jpg",
-          "action": "skip",
-          "next": "r0.jpg"
-        },
-        {
-          "image": "r0.jpg",
-          "action": "click",
-          "next": "ok.jpg"
-        },
-        {
-          "image": "ok.jpg",
-          "action": "click",
-          "next": "biaoji.jpg"
-        },
-        {
-          "image": "biaoji.jpg",
-          "action": "esc",
-          "next": "queren.jpg"
-        },
-        {
-          "image": "queren.jpg",
-          "action": "click",
-          "next": "fail_shibai.jpg"
-        },
-        {
-          "image": "fail_shibai.jpg",
-          "action": "click",
-          "next": ""
-        }
-      ],
-      "next_node": ""
-    },
-    {
       "name": "没券了",
       "steps": [
         {
