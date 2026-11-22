@@ -17,7 +17,7 @@ from time import sleep
 import urllib.request
 
 import PyQt5.QtCore
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QImageReader, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 from pynput.mouse import Listener
 from win32gui import GetClientRect, GetParent, IsWindow, ScreenToClient, WindowFromPoint
@@ -194,6 +194,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.config_set_btn.clicked.connect(self.__on_click_btn_config_set)
         self.targetpic_path_btn.clicked.connect(self.__on_click_btn_target_pic_folder_open)
         self.image_order_btn.clicked.connect(self.__on_click_btn_image_order)
+        self.custom_mark_image.currentIndexChanged.connect(
+            self._update_custom_mark_preview
+        )
         self.btn_select_multi_open_path.clicked.connect(
             self.__on_click_btn_select_multi_open_path
         )
@@ -779,7 +782,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             target_mode, custom_path
         ).get_target_folder_path()
 
-        image_names = set()
+        image_paths_by_name = {}
         if target_folder and os.path.isdir(target_folder):
             def report_walk_error(error):
                 print(f"<br>读取主任务模板目录失败：{error}")
@@ -787,23 +790,61 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             for current_dir, _, filenames in os.walk(
                 target_folder, onerror=report_walk_error
             ):
-                for filename in filenames:
+                for filename in sorted(filenames, key=str.lower):
                     extension = os.path.splitext(filename)[1].lower()
-                    if extension in (".jpg", ".png"):
-                        image_names.add(os.path.splitext(filename)[0])
+                    if extension in (".jpg", ".jpeg", ".png"):
+                        image_name = os.path.splitext(filename)[0]
+                        image_path = os.path.join(current_dir, filename)
+                        image_paths_by_name.setdefault(image_name, image_path)
 
         combo = self.custom_mark_image
         combo.blockSignals(True)
         combo.clear()
         combo.addItem("不自定义", "")
-        for image_name in sorted(image_names):
+        for image_name in sorted(image_paths_by_name):
             combo.addItem(image_name, image_name)
+            combo.setItemData(
+                combo.count() - 1,
+                image_paths_by_name[image_name],
+                PyQt5.QtCore.Qt.UserRole + 1,
+            )
 
         selected_index = combo.findData(preferred_mark_name or "")
         combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
         combo.blockSignals(False)
+        self._update_custom_mark_preview()
 
         self.flow_body_editor.set_target_folder(target_folder)
+
+    def _update_custom_mark_preview(self, _index=None):
+        preview = self.custom_mark_image_preview
+        image_path = self.custom_mark_image.currentData(
+            PyQt5.QtCore.Qt.UserRole + 1
+        )
+        if not image_path:
+            preview.setPixmap(QPixmap())
+            preview.setText("无预览")
+            preview.setToolTip("当前自定义 mark 图片预览")
+            return
+
+        reader = QImageReader(image_path)
+        reader.setAutoTransform(True)
+        source_size = reader.size()
+        if source_size.isValid():
+            reader.setScaledSize(
+                source_size.scaled(
+                    PyQt5.QtCore.QSize(100, 68),
+                    PyQt5.QtCore.Qt.KeepAspectRatio,
+                )
+            )
+        image = reader.read()
+        if image.isNull():
+            preview.setPixmap(QPixmap())
+            preview.setText("图片无法预览")
+        else:
+            preview.setText("")
+            preview.setPixmap(QPixmap.fromImage(image))
+        preview.setToolTip(image_path)
 
     # 配置文件修改按钮
     @staticmethod

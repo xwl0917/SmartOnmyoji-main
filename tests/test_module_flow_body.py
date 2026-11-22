@@ -7,10 +7,9 @@ import numpy as np
 from PyQt5 import QtWidgets
 from modules.ModuleGetPos import GetPosBySiftMatch, GetPosByTemplateMatch
 from modules.ModuleFlowBody import (
+    FlowBodyRuntime,
     FlowBodyEditor,
-    has_configured_next_image,
     load_flow_config,
-    resolve_next_index,
     save_flow_config,
 )
 
@@ -27,39 +26,117 @@ class FlowBodyConfigTests(unittest.TestCase):
         self.assertEqual(load_flow_config(self.folder_path), [])
 
     def test_save_and_load_flow_steps(self):
-        steps = [
-            {"image": "a.png", "action": "skip", "next": "c.png"},
-            {"image": "b.png", "action": "click", "next": ""},
+        nodes = [
+            {
+                "name": "流程A",
+                "steps": [
+                    {"image": "a.png", "action": "skip", "next": "b.png"},
+                    {"image": "b.png", "action": "click", "next": ""},
+                ],
+                "next_node": "",
+            },
         ]
 
-        save_flow_config(self.folder_path, steps)
+        save_flow_config(self.folder_path, nodes)
 
-        self.assertEqual(load_flow_config(self.folder_path), steps)
+        self.assertEqual(load_flow_config(self.folder_path), nodes)
         self.assertTrue(
             os.path.isfile(os.path.join(self.folder_path, "img_flow.json"))
         )
 
-    def test_duplicate_source_image_is_rejected(self):
-        steps = [
-            {"image": "a.png", "action": "click", "next": ""},
-            {"image": "a.png", "action": "skip", "next": ""},
+    def test_legacy_config_loads_as_single_node(self):
+        config_path = os.path.join(self.folder_path, "img_flow.json")
+        with open(config_path, "w", encoding="utf-8") as flow_file:
+            flow_file.write(
+                '{"version": 1, "steps": ['
+                '{"image": "a.png", "action": "click", "next": ""}]}'
+            )
+
+        self.assertEqual(
+            load_flow_config(self.folder_path),
+            [
+                {
+                    "name": "流程1",
+                    "steps": [
+                        {"image": "a.png", "action": "click", "next": ""}
+                    ],
+                    "next_node": "",
+                }
+            ],
+        )
+
+    def test_duplicate_node_start_image_is_rejected(self):
+        nodes = [
+            {
+                "name": "流程A",
+                "steps": [{"image": "a.png", "action": "click", "next": ""}],
+                "next_node": "",
+            },
+            {
+                "name": "流程B",
+                "steps": [{"image": "a.png", "action": "skip", "next": ""}],
+                "next_node": "",
+            },
         ]
 
-        with self.assertRaisesRegex(ValueError, "识别图片重复"):
-            save_flow_config(self.folder_path, steps)
+        with self.assertRaisesRegex(ValueError, "开始图片重复"):
+            save_flow_config(self.folder_path, nodes)
 
-    def test_next_index_uses_route_or_default_order(self):
-        image_keys = ["a.png", "b.png", "c.png"]
-        flow_steps = {
-            "a.png": {"image": "a.png", "action": "click", "next": "c.png"},
-            "b.png": {"image": "b.png", "action": "skip", "next": ""},
-        }
+    def test_runtime_prioritizes_other_node_starts_and_transitions(self):
+        image_keys = ["a_start.png", "a_end.png", "b_start.png", "b_end.png"]
+        nodes = [
+            {
+                "name": "A",
+                "steps": [
+                    {"image": "a_start.png", "action": "click", "next": ""},
+                    {"image": "a_end.png", "action": "skip", "next": ""},
+                ],
+                "next_node": "B",
+            },
+            {
+                "name": "B",
+                "steps": [
+                    {"image": "b_start.png", "action": "click", "next": ""},
+                    {"image": "b_end.png", "action": "stop", "next": ""},
+                ],
+                "next_node": "",
+            },
+        ]
+        runtime = FlowBodyRuntime(image_keys, nodes)
 
-        self.assertEqual(resolve_next_index(0, image_keys, flow_steps), 2)
-        self.assertEqual(resolve_next_index(1, image_keys, flow_steps), 2)
-        self.assertEqual(resolve_next_index(2, image_keys, flow_steps), 0)
-        self.assertTrue(has_configured_next_image(0, image_keys, flow_steps))
-        self.assertFalse(has_configured_next_image(1, image_keys, flow_steps))
+        self.assertEqual(runtime.candidate_indices(), [0, 2, 1, 3])
+        self.assertEqual(runtime.on_match("a_start.png")["action"], "click")
+        self.assertEqual(runtime.active_node, "A")
+        self.assertEqual(runtime.candidate_indices(), [2, 1])
+
+        runtime.on_match("b_start.png")
+        self.assertEqual(runtime.active_node, "B")
+        self.assertEqual(runtime.expected_image, "b_end.png")
+
+        runtime.on_match("b_end.png")
+        self.assertEqual(runtime.active_node, "")
+
+    def test_runtime_jumps_to_configured_node_at_node_end(self):
+        nodes = [
+            {
+                "name": "A",
+                "steps": [{"image": "a.png", "action": "click", "next": ""}],
+                "next_node": "B",
+            },
+            {
+                "name": "B",
+                "steps": [{"image": "b.png", "action": "skip", "next": ""}],
+                "next_node": "",
+            },
+        ]
+        runtime = FlowBodyRuntime(["a.png", "b.png"], nodes)
+
+        runtime.on_match("a.png")
+
+        self.assertEqual(runtime.active_node, "B")
+        self.assertEqual(runtime.expected_image, "b.png")
+        self.assertEqual(runtime.on_match("b.png")["action"], "skip")
+        self.assertEqual(runtime.active_node, "")
 
     def test_template_matching_can_restrict_to_next_image(self):
         screen = np.zeros((4, 4), dtype=np.uint8)
@@ -115,7 +192,19 @@ class FlowBodyEditorTests(unittest.TestCase):
             ]
             save_flow_config(
                 folder_path,
-                [{"image": "b.png", "action": "click", "next": "a.png"}],
+                [
+                    {
+                        "name": "流程A",
+                        "steps": [
+                            {
+                                "image": "b.png",
+                                "action": "click",
+                                "next": "a.png",
+                            }
+                        ],
+                        "next_node": "",
+                    }
+                ],
             )
             editor = FlowBodyEditor()
             with mock.patch(
@@ -124,6 +213,7 @@ class FlowBodyEditorTests(unittest.TestCase):
             ):
                 editor.set_target_folder(folder_path)
 
+            editor.node_combo.setCurrentIndex(0)
             editor._add_rule()
 
             self.assertEqual(editor.table.rowCount(), 2)

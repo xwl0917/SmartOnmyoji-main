@@ -1,25 +1,48 @@
 {
-  "version": 1,
-  "steps": [
+  "version": 2,
+  "nodes": [
     {
-      "image": "r0.jpg",
-      "action": "click",
-      "next": "fight.jpg"
+      "name": "失败3次",
+      "steps": [
+        {
+          "image": "0_fight.jpg",
+          "action": "skip",
+          "next": "00_marked.png"
+        }
+      ],
+      "next_node": ""
     },
     {
-      "image": "fight.jpg",
-      "action": "click",
-      "next": "标记.jpg"
+      "name": "没券了",
+      "steps": [
+        {
+          "image": "no_ticket.jpg",
+          "action": "skip",
+          "next": ""
+        }
+      ],
+      "next_node": ""
     },
     {
-      "image": "标记.jpg",
-      "action": "click",
-      "next": "win_shengli.jpg"
-    },
-    {
-      "image": "win_shengli.jpg",
-      "action": "click",
-      "next": ""
+      "name": "失败操作",
+      "steps": [
+        {
+          "image": "r0.jpg",
+          "action": "click",
+          "next": "fight.jpg"
+        },
+        {
+          "image": "fight.jpg",
+          "action": "click",
+          "next": "win_jiangli2.jpg"
+        },
+        {
+          "image": "win_jiangli2.jpg",
+          "action": "click",
+          "next": ""
+        }
+      ],
+      "next_node": ""
     }
   ]
 }

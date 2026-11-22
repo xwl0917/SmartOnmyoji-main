@@ -17,11 +17,10 @@ from modules.ModuleGetConfig import ReadConfigFile
 from modules.ModuleGetPos import GetPosByTemplateMatch, GetPosBySiftMatch
 from modules.ModuleGetScreenCapture import GetScreenCapture, reset_screen_scale_rate_cache
 from modules.ModuleFlowBody import (
+    FlowBodyRuntime,
     FLOW_ACTION_LABELS,
-    has_configured_next_image,
     image_key,
     load_flow_config,
-    resolve_next_index,
 )
 from modules.ModuleGetTargetInfo import GetTargetPicInfo
 from modules.ModuleHandleSet import HandleSet
@@ -54,12 +53,10 @@ class StartMatch:
         self._img_pos_warned = set()
         # 上一次成功匹配的图片索引；下一次从它后面一张开始
         self.last_matched_index = -1
-        self.next_match_index = None
-        self.strict_next_match = False
         self.flow_body_enabled = False
         self.flow_folder_path = ""
         self.target_image_keys = []
-        self.flow_steps = {}
+        self.flow_runtime = FlowBodyRuntime([], [])
 
     def _get_compressed_templates(self, target_img, compress_val):
         """按压缩率缓存模板，避免每帧都重新 resize 所有模板"""
@@ -105,8 +102,7 @@ class StartMatch:
         target_modname = self.target_modname
         custom_target_path = self.custom_target_path
         self.last_matched_index = -1
-        self.next_match_index = None
-        self.strict_next_match = False
+        self.flow_runtime.reset()
         reset_screen_scale_rate_cache()  # 本轮开始前重新读取界面上的屏幕缩放设置
         # 获取待检测目标图片信息
         print('<br>目标图片读取中……')
@@ -126,24 +122,26 @@ class StartMatch:
             image_key(image_path, self.flow_folder_path)
             for image_path in target_img_file_path
         ]
-        flow_steps = (
+        flow_nodes = (
             load_flow_config(self.flow_folder_path)
             if self.flow_body_enabled
             else []
         )
+        self.flow_runtime = FlowBodyRuntime(self.target_image_keys, flow_nodes)
         known_image_keys = set(self.target_image_keys)
-        self.flow_steps = {step["image"]: step for step in flow_steps}
-        for step in flow_steps:
-            if step["image"] not in known_image_keys:
+        for node in flow_nodes:
+            start_image = node["steps"][0]["image"]
+            if start_image not in known_image_keys:
                 print(
-                    "<br>流程体：识别图片不存在，忽略该规则：%s"
-                    % step["image"]
+                    "<br>流程体：节点 [%s] 的开始图片不存在，无法进入该节点：%s"
+                    % (node["name"], start_image)
                 )
-            if step["next"] and step["next"] not in known_image_keys:
-                print(
-                    "<br>流程体：下一步图片不存在，改用原识别顺序：%s"
-                    % step["next"]
-                )
+            for step in node["steps"][1:]:
+                if step["image"] not in known_image_keys:
+                    print(
+                        "<br>流程体：节点 [%s] 的识别图片不存在，忽略该规则：%s"
+                        % (node["name"], step["image"])
+                    )
 
         print(f'<br>读取完成！共[ {len(target_img)} ]张图片\n{target_img_name}')
         print("<br>--------------------------------------------")
@@ -242,13 +240,15 @@ class StartMatch:
         target_img_sift, target_img_hw, target_img_name, target_img_file_path, target_img = target_info
         click_mod = click_mod1  # 默认使用精确点击模型
         target_count = len(target_img_name)
-        if self.next_match_index is not None:
-            start_index = self.next_match_index
+        candidate_indices = self.flow_runtime.candidate_indices(
+            self.last_matched_index
+        )
+        if candidate_indices:
+            start_index = candidate_indices[0]
         else:
             start_index = (
                 (self.last_matched_index + 1) % target_count if target_count else 0
             )
-        candidate_indices = [start_index] if self.strict_next_match else None
 
         # 获取截图
         print('<br>正在截图…')
@@ -332,30 +332,27 @@ class StartMatch:
             print(f"<br>匹配成功! ")
             match_status = True
             self.last_matched_index = target_num
-            self.next_match_index = resolve_next_index(
-                target_num, self.target_image_keys, self.flow_steps
-            )
-            self.strict_next_match = has_configured_next_image(
-                target_num, self.target_image_keys, self.flow_steps
-            )
             matched_image_key = image_key(
                 target_img_file_path[target_num], self.flow_folder_path
             )
-            flow_step = self.flow_steps.get(matched_image_key, {})
+            flow_step = self.flow_runtime.on_match(matched_image_key) or {}
             flow_action = flow_step.get("action", "")
             if flow_step:
-                next_image = flow_step.get("next", "")
+                node_name = self.flow_runtime.last_matched_node
                 print(
-                    "<br>流程体：图片 [ %s ]，操作 [ %s ]，下一步 [ %s ]"
+                    "<br>流程体：节点 [ %s ]，图片 [ %s ]，操作 [ %s ]"
                     % (
+                        node_name,
                         matched_image_key,
                         FLOW_ACTION_LABELS[flow_action],
-                        next_image or "原识别顺序",
                     )
                 )
             if debug_status and target_count:
-                next_index = self.next_match_index
-                print(f"<br>下一次从第 [ {next_index + 1} ] 张图片开始匹配")
+                if candidate_indices:
+                    print(
+                        "<br>下一次优先检查的模板索引：%s"
+                        % [index + 1 for index in candidate_indices]
+                    )
 
             # 如果图片有压缩，需对坐标还原
             if compress_val != 1:

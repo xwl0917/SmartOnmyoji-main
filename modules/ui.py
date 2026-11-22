@@ -316,6 +316,14 @@ class Ui_MainWindow(object):
         self.custom_mark_image.setMaximumWidth(200)
         self.custom_mark_image.addItem("")
         row.addWidget(self.custom_mark_image, 1)
+
+        self.custom_mark_image_preview = QtWidgets.QLabel("无预览")
+        self.custom_mark_image_preview.setObjectName("custom_mark_image_preview")
+        self.custom_mark_image_preview.setAlignment(QtCore.Qt.AlignCenter)
+        self.custom_mark_image_preview.setFixedSize(108, 76)
+        self.custom_mark_image_preview.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.custom_mark_image_preview.setToolTip("当前自定义 mark 图片预览")
+        row.addWidget(self.custom_mark_image_preview)
         layout.addLayout(row)
 
         # ---- 行 6：进度计算方式 ------------------------------------- #
@@ -499,8 +507,28 @@ class Ui_MainWindow(object):
         self.image_compression.setOrientation(QtCore.Qt.Horizontal)
         self.image_compression.setInvertedAppearance(False)
         self.image_compression.setInvertedControls(False)
-        self.image_compression.setMinimumHeight(30)
-        row.addWidget(self.image_compression, 1)
+        self.image_compression.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        self.image_compression.setTickInterval(10)
+        self.image_compression.setMinimumHeight(38)
+
+        compression_layout = QtWidgets.QVBoxLayout()
+        compression_layout.setContentsMargins(0, 0, 0, 0)
+        compression_layout.setSpacing(0)
+        compression_layout.addWidget(self.image_compression)
+
+        self.image_compression_scale = QtWidgets.QWidget()
+        self.image_compression_scale.setObjectName("image_compression_scale")
+        scale_layout = QtWidgets.QGridLayout(self.image_compression_scale)
+        scale_layout.setContentsMargins(0, 0, 0, 0)
+        scale_layout.setSpacing(0)
+        for index, value in enumerate(range(40, 101, 10)):
+            scale_label = QtWidgets.QLabel("%d%%" % value)
+            scale_label.setAlignment(QtCore.Qt.AlignCenter)
+            scale_label.setObjectName("image_compression_tick_%d" % value)
+            scale_layout.addWidget(scale_label, 0, index)
+            scale_layout.setColumnStretch(index, 1)
+        compression_layout.addWidget(self.image_compression_scale)
+        row.addLayout(compression_layout, 1)
         layout.addLayout(row)
 
         # ---- 行 4：匹配方法 ----------------------------------------- #

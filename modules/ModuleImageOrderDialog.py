@@ -2,7 +2,7 @@
 """图片识别顺序设置对话框。"""
 import os
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from modules.ModuleGetTargetInfo import (
     apply_image_order,
@@ -39,7 +39,21 @@ class ImageOrderDialog(QtWidgets.QDialog):
         self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setUniformItemSizes(True)
+        self.list_widget.currentItemChanged.connect(self._update_preview)
         layout.addWidget(self.list_widget, 1)
+
+        preview_row = QtWidgets.QHBoxLayout()
+        self.preview_image = QtWidgets.QLabel("选择图片以预览")
+        self.preview_image.setObjectName("image_order_preview")
+        self.preview_image.setAlignment(QtCore.Qt.AlignCenter)
+        self.preview_image.setFixedSize(200, 140)
+        self.preview_image.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        preview_row.addWidget(self.preview_image)
+
+        self.preview_name = QtWidgets.QLabel()
+        self.preview_name.setWordWrap(True)
+        preview_row.addWidget(self.preview_name, 1)
+        layout.addLayout(preview_row)
 
         button_row = QtWidgets.QHBoxLayout()
         button_row.setSpacing(8)
@@ -83,6 +97,40 @@ class ImageOrderDialog(QtWidgets.QDialog):
             item.setData(QtCore.Qt.UserRole, relative)
             item.setToolTip(image_path)
             self.list_widget.addItem(item)
+        if self.list_widget.count():
+            self.list_widget.setCurrentRow(0)
+        else:
+            self._update_preview()
+
+    def _update_preview(self, current=None, _previous=None):
+        if current is None:
+            self.preview_image.setPixmap(QtGui.QPixmap())
+            self.preview_image.setText("选择图片以预览")
+            self.preview_name.clear()
+            return
+
+        relative = current.data(QtCore.Qt.UserRole)
+        image_path = os.path.join(
+            self.folder_path, *relative.replace("\\", "/").split("/")
+        )
+        reader = QtGui.QImageReader(image_path)
+        reader.setAutoTransform(True)
+        source_size = reader.size()
+        if source_size.isValid():
+            reader.setScaledSize(
+                source_size.scaled(
+                    QtCore.QSize(192, 132), QtCore.Qt.KeepAspectRatio
+                )
+            )
+        image = reader.read()
+        if image.isNull():
+            self.preview_image.setPixmap(QtGui.QPixmap())
+            self.preview_image.setText("图片无法预览")
+        else:
+            self.preview_image.setText("")
+            self.preview_image.setPixmap(QtGui.QPixmap.fromImage(image))
+        self.preview_name.setText(relative)
+        self.preview_name.setToolTip(image_path)
 
     def _move_item(self, delta):
         row = self.list_widget.currentRow()
@@ -92,6 +140,7 @@ class ImageOrderDialog(QtWidgets.QDialog):
         item = self.list_widget.takeItem(row)
         self.list_widget.insertItem(target, item)
         self.list_widget.setCurrentRow(target)
+        self._update_preview(self.list_widget.currentItem())
 
     def _sort_by_name(self):
         self._populate(list_target_image_files(self.folder_path, natural_sort=True))
