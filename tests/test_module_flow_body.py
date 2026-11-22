@@ -336,6 +336,90 @@ class FlowBodyEditorTests(unittest.TestCase):
             )
             editor.close()
 
+    def test_create_node_from_images_builds_steps(self):
+        with tempfile.TemporaryDirectory() as folder_path:
+            image_paths = [
+                os.path.join(folder_path, "a.png"),
+                os.path.join(folder_path, "b.png"),
+                os.path.join(folder_path, "c.png"),
+            ]
+            editor = FlowBodyEditor()
+            with mock.patch(
+                "modules.ModuleFlowBody.list_target_image_files",
+                return_value=image_paths,
+            ):
+                editor.set_target_folder(folder_path)
+
+            self.assertTrue(
+                editor._create_node_from_images("流程A", ["a.png", "b.png"])
+            )
+
+            self.assertEqual(editor.nodes[0]["name"], "流程A")
+            self.assertEqual(
+                [step["image"] for step in editor.nodes[0]["steps"]],
+                ["a.png", "b.png"],
+            )
+            self.assertEqual(editor.table.rowCount(), 2)
+            self.assertEqual(
+                editor.table.cellWidget(0, 0).currentData(), "a.png"
+            )
+            self.assertEqual(
+                editor.table.cellWidget(1, 0).currentData(), "b.png"
+            )
+            self.assertEqual(
+                editor.table.cellWidget(0, 1).currentData(), "click"
+            )
+            self.assertEqual(
+                editor.table.cellWidget(0, 2).currentData(), DEFAULT_NEXT
+            )
+            self.assertIn("流程A", editor.status_label.text())
+            editor.close()
+
+    def test_create_node_from_images_rejects_conflicts(self):
+        with tempfile.TemporaryDirectory() as folder_path:
+            image_paths = [
+                os.path.join(folder_path, "a.png"),
+                os.path.join(folder_path, "b.png"),
+            ]
+            save_flow_config(
+                folder_path,
+                [
+                    {
+                        "name": "流程A",
+                        "steps": [
+                            {"image": "a.png", "action": "click", "next": ""}
+                        ],
+                        "next_node": "",
+                    }
+                ],
+            )
+            editor = FlowBodyEditor()
+            with mock.patch(
+                "modules.ModuleFlowBody.list_target_image_files",
+                return_value=image_paths,
+            ):
+                editor.set_target_folder(folder_path)
+
+            # 开始图片与现有节点冲突
+            self.assertFalse(
+                editor._create_node_from_images("流程B", ["a.png"])
+            )
+            self.assertIn("开始图片冲突", editor.status_label.text())
+            self.assertEqual(len(editor.nodes), 1)
+
+            # 节点名称重复
+            self.assertFalse(
+                editor._create_node_from_images("流程A", ["b.png"])
+            )
+            self.assertEqual(len(editor.nodes), 1)
+
+            # 名称和开始图都合法时可生成
+            self.assertTrue(
+                editor._create_node_from_images("流程B", ["b.png"])
+            )
+            self.assertEqual(len(editor.nodes), 2)
+            editor.close()
+
 
 if __name__ == "__main__":
     unittest.main()

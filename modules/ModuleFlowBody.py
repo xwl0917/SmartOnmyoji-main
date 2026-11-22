@@ -287,6 +287,164 @@ class FlowBodyRuntime:
         self.expected_image = ""
 
 
+class FlowNodeImagesDialog(QtWidgets.QDialog):
+    """多选模板图片，按列表勾选顺序一键生成流程节点。"""
+
+    def __init__(self, editor, parent=None):
+        super(FlowNodeImagesDialog, self).__init__(parent)
+        self.editor = editor
+        self.result_data = None
+        self.setWindowTitle("多选生成节点")
+        self.setMinimumWidth(460)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        name_row = QtWidgets.QHBoxLayout()
+        name_row.addWidget(QtWidgets.QLabel("节点名称"))
+        self.name_edit = QtWidgets.QLineEdit()
+        self.name_edit.setText(self._default_node_name())
+        name_row.addWidget(self.name_edit, 1)
+        layout.addLayout(name_row)
+
+        layout.addWidget(QtWidgets.QLabel(
+            "勾选需要的图片（可多选）；列表从上到下的勾选图片就是步骤顺序，"
+            "选中一项后用上移/下移调整位置。"
+        ))
+
+        body_row = QtWidgets.QHBoxLayout()
+        self.image_list = QtWidgets.QListWidget()
+        self.image_list.setObjectName("flow_node_images_list")
+        for key in editor.image_keys:
+            item = QtWidgets.QListWidgetItem(editor._image_icon(key), key)
+            item.setData(QtCore.Qt.UserRole, key)
+            item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.Unchecked)
+            self.image_list.addItem(item)
+        self.image_list.currentItemChanged.connect(self._update_preview)
+        body_row.addWidget(self.image_list, 1)
+
+        move_layout = QtWidgets.QVBoxLayout()
+        self.move_up_button = QtWidgets.QPushButton("上移")
+        self.move_down_button = QtWidgets.QPushButton("下移")
+        move_layout.addWidget(self.move_up_button)
+        move_layout.addWidget(self.move_down_button)
+        move_layout.addStretch(1)
+        body_row.addLayout(move_layout)
+        layout.addLayout(body_row, 1)
+
+        self.preview_image = QtWidgets.QLabel("选择图片以预览")
+        self.preview_image.setObjectName("flow_node_images_preview")
+        self.preview_image.setAlignment(QtCore.Qt.AlignCenter)
+        self.preview_image.setFixedSize(200, 140)
+        self.preview_image.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.preview_name = QtWidgets.QLabel()
+        self.preview_name.setWordWrap(True)
+        preview_row = QtWidgets.QHBoxLayout()
+        preview_row.addWidget(self.preview_image)
+        preview_row.addWidget(self.preview_name, 1)
+        layout.addLayout(preview_row)
+
+        button_row = QtWidgets.QHBoxLayout()
+        button_row.addStretch(1)
+        self.ok_button = QtWidgets.QPushButton("生成节点")
+        self.cancel_button = QtWidgets.QPushButton("取消")
+        button_row.addWidget(self.ok_button)
+        button_row.addWidget(self.cancel_button)
+        layout.addLayout(button_row)
+
+        self.ok_button.clicked.connect(self._on_accept)
+        self.cancel_button.clicked.connect(self.reject)
+        self.move_up_button.clicked.connect(lambda: self._move_item(-1))
+        self.move_down_button.clicked.connect(lambda: self._move_item(1))
+
+        if self.image_list.count():
+            self.image_list.setCurrentRow(0)
+        else:
+            self._update_preview()
+
+    def _default_node_name(self):
+        existing = {node["name"] for node in self.editor.nodes}
+        number = 1
+        while "流程%d" % number in existing:
+            number += 1
+        return "流程%d" % number
+
+    def _move_item(self, delta):
+        row = self.image_list.currentRow()
+        target = row + delta
+        if row < 0 or target < 0 or target >= self.image_list.count():
+            return
+        item = self.image_list.takeItem(row)
+        self.image_list.insertItem(target, item)
+        self.image_list.setCurrentRow(target)
+
+    def _update_preview(self, current=None, _previous=None):
+        if current is None:
+            self.preview_image.setPixmap(QtGui.QPixmap())
+            self.preview_image.setText("选择图片以预览")
+            self.preview_name.clear()
+            return
+        key = current.data(QtCore.Qt.UserRole)
+        image_path = self.editor.image_paths.get(key, "")
+        reader = QtGui.QImageReader(image_path)
+        reader.setAutoTransform(True)
+        source_size = reader.size()
+        if source_size.isValid():
+            reader.setScaledSize(
+                source_size.scaled(
+                    QtCore.QSize(192, 132), QtCore.Qt.KeepAspectRatio
+                )
+            )
+        image = reader.read()
+        if image.isNull():
+            self.preview_image.setPixmap(QtGui.QPixmap())
+            self.preview_image.setText("图片无法预览")
+        else:
+            self.preview_image.setText("")
+            self.preview_image.setPixmap(QtGui.QPixmap.fromImage(image))
+        self.preview_name.setText(key)
+        self.preview_name.setToolTip(image_path)
+
+    def _checked_keys(self):
+        return [
+            self.image_list.item(row).data(QtCore.Qt.UserRole)
+            for row in range(self.image_list.count())
+            if self.image_list.item(row).checkState() == QtCore.Qt.Checked
+        ]
+
+    def _on_accept(self):
+        name = self.name_edit.text().strip()
+        if not name or any(node["name"] == name for node in self.editor.nodes):
+            QtWidgets.QMessageBox.warning(
+                self, "节点名称无效", "节点名称不能为空且不能重复。"
+            )
+            return
+        keys = self._checked_keys()
+        if not keys:
+            QtWidgets.QMessageBox.warning(
+                self, "未选择图片", "请至少勾选一张图片。"
+            )
+            return
+        used_starts = {
+            node["steps"][0]["image"] for node in self.editor.nodes
+            if node["steps"]
+        }
+        if keys[0] in used_starts:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "开始图片冲突",
+                "首张勾选图片 [ %s ] 已是其他节点的开始图片，"
+                "请调整勾选顺序或换一张开始图。" % keys[0],
+            )
+            return
+        self.result_data = (name, keys)
+        self.accept()
+
+    def get_result(self):
+        return self.result_data
+
+
 class FlowBodyEditor(QtWidgets.QWidget):
     """在设置页内编辑并保存模板目录对应的流程规则。"""
 
@@ -320,8 +478,14 @@ class FlowBodyEditor(QtWidgets.QWidget):
         self.node_combo.setObjectName("flow_body_node_combo")
         node_row.addWidget(self.node_combo, 1)
         self.add_node_button = QtWidgets.QPushButton("添加节点")
+        self.quick_create_button = QtWidgets.QPushButton("多选生成节点")
+        self.quick_create_button.setObjectName("flow_body_quick_create_button")
+        self.quick_create_button.setToolTip(
+            "从模板图片中按顺序勾选多张图，一键生成完整节点"
+        )
         self.delete_node_button = QtWidgets.QPushButton("删除节点")
         node_row.addWidget(self.add_node_button)
+        node_row.addWidget(self.quick_create_button)
         node_row.addWidget(self.delete_node_button)
         layout.addLayout(node_row)
 
@@ -370,6 +534,7 @@ class FlowBodyEditor(QtWidgets.QWidget):
         self.add_button.clicked.connect(self._add_rule)
         self.delete_button.clicked.connect(self._delete_rule)
         self.add_node_button.clicked.connect(self._add_node)
+        self.quick_create_button.clicked.connect(self._on_quick_create_node)
         self.delete_node_button.clicked.connect(self._delete_node)
         self.save_button.clicked.connect(self._save)
         self.node_combo.currentIndexChanged.connect(self._on_node_changed)
@@ -689,6 +854,61 @@ class FlowBodyEditor(QtWidgets.QWidget):
         self._show_node(name)
         self._update_enabled_state()
 
+    def _on_quick_create_node(self):
+        if not self.image_keys:
+            return
+        used_starts = {
+            node["steps"][0]["image"] for node in self.nodes if node["steps"]
+        }
+        if not [key for key in self.image_keys if key not in used_starts]:
+            QtWidgets.QMessageBox.information(
+                self,
+                "没有可用开始图片",
+                "每个节点的开始图片不能重复，当前已没有可用的开始图片。",
+            )
+            return
+        dialog = FlowNodeImagesDialog(self, self)
+        if dialog.exec_():
+            name, keys = dialog.get_result()
+            self._create_node_from_images(name, keys)
+
+    def _create_node_from_images(self, name, image_keys_list):
+        """按给定图片顺序一键生成节点；失败时状态栏提示并返回 False。"""
+        name = str(name or "").strip()
+        if not name or any(node["name"] == name for node in self.nodes):
+            self.status_label.setText("节点名称不能为空且不能重复。")
+            return False
+        keys = [key for key in image_keys_list if key in self.image_keys]
+        if not keys:
+            self.status_label.setText("请至少选择一张模板图片。")
+            return False
+        used_starts = {
+            node["steps"][0]["image"] for node in self.nodes if node["steps"]
+        }
+        if keys[0] in used_starts:
+            self.status_label.setText(
+                "开始图片冲突：%s 已是其他节点的开始图片。" % keys[0]
+            )
+            return False
+        self._save_current_node()
+        node = {
+            "name": name,
+            "steps": [
+                {"image": key, "action": "click", "next": ""} for key in keys
+            ],
+            "next_node": "",
+        }
+        self.nodes.append(node)
+        self._populate_node_combo()
+        index = self.node_combo.findData(name)
+        self.node_combo.setCurrentIndex(index)
+        self._show_node(name)
+        self._update_enabled_state()
+        self.status_label.setText(
+            "已生成节点 [%s]，共 %d 步；保存流程体后生效。" % (name, len(keys))
+        )
+        return True
+
     def _delete_node(self):
         if not self.current_node_name:
             return
@@ -773,6 +993,7 @@ class FlowBodyEditor(QtWidgets.QWidget):
         has_node = enabled and bool(self.current_node_name)
         self.node_combo.setEnabled(enabled and bool(self.nodes))
         self.add_node_button.setEnabled(enabled and bool(self.image_keys))
+        self.quick_create_button.setEnabled(enabled and bool(self.image_keys))
         self.delete_node_button.setEnabled(has_node)
         self.end_node_combo.setEnabled(has_node)
         self.table.setEnabled(has_node)
