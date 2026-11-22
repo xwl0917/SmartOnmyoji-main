@@ -282,6 +282,12 @@ class Ui_MainWindow(object):
         self.image_order_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.image_order_btn.setToolTip("调整当前目标图片文件夹内的识别顺序")
         row.addWidget(self.image_order_btn)
+
+        self.capture_template_btn = QtWidgets.QPushButton()
+        self.capture_template_btn.setObjectName("capture_template_btn")
+        self.capture_template_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.capture_template_btn.setToolTip("抓取当前目标窗口/设备截图，框选区域保存为模板")
+        row.addWidget(self.capture_template_btn)
         row.addStretch(1)
         layout.addLayout(row)
 
@@ -960,6 +966,7 @@ class Ui_MainWindow(object):
         self.btn_select_handle.setText(_translate("MainWindow", "获取窗体"))
         self.image_order_label.setText(_translate("MainWindow", "图片识别顺序："))
         self.image_order_btn.setText(_translate("MainWindow", "调整顺序"))
+        self.capture_template_btn.setText(_translate("MainWindow", "采集模板"))
         self.targetpic_path_btn.setText(_translate("MainWindow", "img文件夹"))
         self.label_18.setText(_translate("MainWindow", "坐标偏移："))
         self.label_19.setText(_translate("MainWindow", "个像素"))

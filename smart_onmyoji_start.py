@@ -27,6 +27,7 @@ from modules.ModuleHandleSet import HandleSet
 from modules.ModuleGetTargetInfo import GetTargetPicInfo
 from modules.ModuleImageOrderDialog import ImageOrderDialog
 from modules.ModuleRunThread import MatchingThread, GetActiveWindowThread
+from modules.ModuleTemplateCapture import TemplateCaptureDialog, capture_screen_image
 from modules.ModuleV5MultiOpen import V5MultiOpen, is_32bit_exe
 from modules.ui import Ui_MainWindow
 
@@ -194,6 +195,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.config_set_btn.clicked.connect(self.__on_click_btn_config_set)
         self.targetpic_path_btn.clicked.connect(self.__on_click_btn_target_pic_folder_open)
         self.image_order_btn.clicked.connect(self.__on_click_btn_image_order)
+        self.capture_template_btn.clicked.connect(
+            self.__on_click_btn_capture_template
+        )
         self.custom_mark_image.currentIndexChanged.connect(
             self._update_custom_mark_preview
         )
@@ -450,6 +454,49 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print(
                 f"<br>图片识别顺序已保存：[ {folder_path} ]，"
                 "下次开始匹配时生效。"
+            )
+
+    # 采集模板按钮：抓取目标画面，框选区域保存为当前目标目录的模板
+    def __on_click_btn_capture_template(self):
+        target_mode = self.select_target_path_mode_combobox.currentText()
+        custom_path = self.show_target_path.text() if target_mode == "自定义" else ""
+        folder_path = GetTargetPicInfo(
+            target_mode, custom_path
+        ).get_target_folder_path()
+        if not folder_path or not os.path.isdir(folder_path):
+            print("<br>采集模板：请先选择有效的目标模板文件夹！")
+            return
+
+        connect_mod = (
+            "Windows程序" if self.rd_btn_windows_mod.isChecked() else "Android-手机"
+        )
+        hwnd = 0
+        if connect_mod == "Windows程序":
+            if self.process_num_one.isChecked():
+                hwnd = HandleSet(self.show_handle_title.text(), 0).get_handle_num
+            else:
+                for handle_text in str(self.show_handle_num.text()).split(","):
+                    try:
+                        hwnd = int(handle_text.strip())
+                    except ValueError:
+                        continue
+                    if hwnd:
+                        break
+        try:
+            image, source = capture_screen_image(connect_mod, hwnd)
+        except ValueError as error:
+            print("<br>采集模板：%s" % error)
+            return
+
+        dialog = TemplateCaptureDialog(folder_path, image, source, self)
+        if dialog.exec_() and dialog.saved_path:
+            self._refresh_main_target_images()
+            print(
+                "<br>采集模板：已保存 [ %s ]%s，开始匹配后生效。"
+                % (
+                    dialog.saved_path,
+                    "，flag 已写入 img_pos.json" if dialog.saved_flag else "",
+                )
             )
 
     # ---- 程序多开（启动外部程序） ---------------------------------- #

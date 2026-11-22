@@ -3,3 +3,4 @@ Release
 selfcheck.log
 gen_py/
 .venv/
+.zcode/
