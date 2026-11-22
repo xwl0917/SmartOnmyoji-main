@@ -6,11 +6,18 @@
 from os.path import abspath, dirname
 from time import sleep
 import random
+from modules.ModuleWin32Com import configure_com_cache
+
+configure_com_cache()
+
 import win32com.client
 from win32gui import SetForegroundWindow, GetWindowRect, GetClientRect, ClientToScreen
 from win32api import MAKELONG, SendMessage
-from win32con import WM_LBUTTONUP, WM_LBUTTONDOWN, WM_ACTIVATE, WA_ACTIVE
-from pyautogui import position, click, moveTo
+from win32con import (
+    WM_LBUTTONUP, WM_LBUTTONDOWN, WM_ACTIVATE, WA_ACTIVE,
+    WM_KEYDOWN, WM_KEYUP, VK_ESCAPE,
+)
+from pyautogui import position, click, moveTo, press
 
 from modules.ModuleClickModSet import ClickModSet
 from modules.ModuleHandleSet import HandleSet
@@ -169,6 +176,38 @@ class DoClick:
         moveTo(now_pos[0], now_pos[1])
 
         return True, click_pos_list
+
+    def press_esc_key(self, scr_and_click_method):
+        """按下一次键盘 ESC 键（流程体操作，无需坐标）"""
+        if scr_and_click_method == '兼容-不可后台':
+            # 前台模式：窗口置顶后用 pyautogui 按键
+            shell = win32com.client.Dispatch("WScript.Shell")
+            shell.SendKeys('%')
+            SetForegroundWindow(self.handle_num)
+            sleep(0.2)  # 置顶后等0.2秒再按键
+            press('esc')
+        else:
+            # 后台消息模式：向窗口发送 WM_KEYDOWN/WM_KEYUP（VK_ESCAPE=0x1B，扫描码 0x01）
+            lparam_down = 0x00000001 | (0x01 << 16)  # repeat=1，扫描码 ESC
+            lparam_up = lparam_down | 0xC0000000  # KEYUP 需要释放标志位
+            SendMessage(self.handle_num, WM_KEYDOWN, VK_ESCAPE, lparam_down)
+            sleep((random.randint(5, 15)) / 100)  # 按键间隔随机化
+            SendMessage(self.handle_num, WM_KEYUP, VK_ESCAPE, lparam_up)
+        print(
+            f"<br>按下ESC键: [ {HandleSet.get_handle_title(self.handle_num)} ]"
+        )
+        return True
+
+    @staticmethod
+    def adb_press_esc(device_id):
+        """安卓端按一次“ESC”：对应返回键 KEYCODE_BACK（keyevent 4）"""
+        command = (
+            abspath(dirname(__file__))
+            + rf'\adb.exe -s {device_id} shell input keyevent 4'
+        )
+        HandleSet.deal_cmd(command)
+        print(f"<br>按下ESC键(返回键): 设备 [ {device_id} ]")
+        return True
 
     @staticmethod
     def get_ex_click_pos(ex_click_probability, width, height, old_pos, px, py, origin=(0, 0)):

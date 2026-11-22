@@ -13,6 +13,7 @@ FLOW_BODY_FILE = "img_flow.json"
 FLOW_ACTIONS = (
     ("click", "点击"),
     ("skip", "跳过点击"),
+    ("esc", "按下ESC键"),
     ("stop", "停止脚本"),
 )
 FLOW_ACTION_LABELS = dict(FLOW_ACTIONS)
@@ -193,15 +194,19 @@ class FlowBodyRuntime:
             return None
 
         if self.active_node:
-            candidates = [
-                self.image_indices[start_image]
-                for start_image, node_name in self.start_nodes.items()
-                if node_name != self.active_node
-                and start_image in self.image_indices
-            ]
+            # 节点内期望图优先：当前步骤的期望图排在最前，先被识别；
+            # 其他节点的开始图只作为期望图不在屏幕上时的兜底，
+            # 避免期望图与开始图同时在屏时节点被误打断。
+            candidates = []
             expected_index = self.image_indices.get(self.expected_image)
-            if expected_index is not None and expected_index not in candidates:
+            if expected_index is not None:
                 candidates.append(expected_index)
+            for start_image, node_name in self.start_nodes.items():
+                if node_name == self.active_node:
+                    continue
+                start_index = self.image_indices.get(start_image)
+                if start_index is not None and start_index not in candidates:
+                    candidates.append(start_index)
             if not candidates:
                 self.reset()
                 return self.candidate_indices(last_matched_index)
@@ -559,6 +564,36 @@ class FlowBodyEditor(QtWidgets.QWidget):
         )
         self.table.selectRow(row)
 
+    def _on_next_image_changed(self, next_combo):
+        """节点末尾规则的“下一步图片”选了尚未使用的新图片时，自动追加该步骤。"""
+        row = next(
+            (
+                index
+                for index in range(self.table.rowCount())
+                if self.table.cellWidget(index, 2) is next_combo
+            ),
+            -1,
+        )
+        if row < 0 or not self.current_node_name:
+            return
+        selected_image = next_combo.currentData()
+        if (
+            not selected_image
+            or selected_image == DEFAULT_NEXT
+            or selected_image not in self.image_keys
+            or selected_image in self._used_images()
+        ):
+            return
+        if row != self.table.rowCount() - 1:
+            return
+        new_row = self.table.rowCount()
+        self._insert_rule(
+            new_row,
+            {"image": selected_image, "action": "click", "next": ""},
+        )
+        self.status_label.setText("已自动添加下一步骤：%s" % selected_image)
+        self.table.selectRow(new_row)
+
     def _insert_rule(self, row, step):
         self.table.insertRow(row)
         self.table.setCellWidget(
@@ -572,6 +607,7 @@ class FlowBodyEditor(QtWidgets.QWidget):
             action_combo.setCurrentIndex(action_index)
         self.table.setCellWidget(row, 1, action_combo)
         next_combo = QtWidgets.QComboBox()
+        next_combo.blockSignals(True)
         next_combo.addItem("按节点顺序（末尾结束）", DEFAULT_NEXT)
         node_images = [
             self.table.cellWidget(index, 0).currentData()
@@ -599,6 +635,10 @@ class FlowBodyEditor(QtWidgets.QWidget):
         selected_index = next_combo.findData(step["next"])
         if selected_index >= 0:
             next_combo.setCurrentIndex(selected_index)
+        next_combo.blockSignals(False)
+        next_combo.currentIndexChanged.connect(
+            lambda _index, combo=next_combo: self._on_next_image_changed(combo)
+        )
         self.table.setCellWidget(row, 2, next_combo)
 
     def _add_node(self):

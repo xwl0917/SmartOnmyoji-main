@@ -411,6 +411,16 @@ class StartMatch:
                     % target_img_name[target_num]
                 )
                 match_status = False
+            elif flow_action == "esc":
+                # 按一次键盘 ESC 键；handle_num 已是各窗口解析后的句柄，
+                # 键盘消息发给主窗口（不重定向到雷电的 TheRender 渲染子窗口）
+                if connect_mod == 'Windows程序':
+                    doclick = DoClick(pos, click_mod, handle_num)
+                    doclick.press_esc_key(scr_and_click_method)
+                elif connect_mod == 'Android-手机':
+                    adb_device_connect_status, device_id = HandleSet.adb_device_status()
+                    if adb_device_connect_status:
+                        DoClick.adb_press_esc(device_id[0])
             else:
                 if img_flag == "mark":
                     click_mod = ClickModSet.create_click_mod(20, size=(200, 2))  # 构造正态分布模型，只针对标记场景，所以仅小范围偏移
