@@ -104,6 +104,27 @@ def merge_flag_into_img_pos(folder_path, image_name, flag):
     return json_path
 
 
+def remove_img_pos_entry(folder_path, image_name):
+    """从目录 img_pos.json 移除同名条目；文件不存在或损坏时保持原样。"""
+    json_path = os.path.join(folder_path, "img_pos.json")
+    if not os.path.isfile(json_path):
+        return
+    try:
+        with open(json_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, list):
+        return
+    remaining = [
+        item for item in data
+        if not (isinstance(item, dict) and item.get("name") == image_name)
+    ]
+    if len(remaining) != len(data):
+        with open(json_path, "w", encoding="utf-8") as handle:
+            json.dump(remaining, handle, ensure_ascii=False, indent=4)
+
+
 def capture_screen_image(connect_mod, hwnd):
     """抓取整屏截图，返回 (灰度图, 来源描述)；失败抛 ValueError。
 

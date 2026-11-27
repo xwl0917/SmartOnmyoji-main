@@ -287,6 +287,48 @@ class FlowBodyRuntime:
         self.expected_image = ""
 
 
+def find_flow_references(folder_path, target_image):
+    """查找 img_flow.json 中引用指定图片的节点。
+
+    返回 (start_nodes, step_nodes, flow_error)：
+      start_nodes: 以该图为开始图片的节点名列表（阻止删除）
+      step_nodes:  含该图非首条步骤的节点名列表（可自动移除步骤）
+      flow_error:  流程文件无法解析时的错误信息，正常为 None
+    """
+    try:
+        nodes = load_flow_config(folder_path)
+    except ValueError as error:
+        return [], [], str(error)
+    start_nodes = []
+    step_nodes = []
+    for node in nodes:
+        if not node["steps"]:
+            continue
+        if node["steps"][0]["image"] == target_image:
+            start_nodes.append(node["name"])
+        if any(step["image"] == target_image for step in node["steps"][1:]):
+            step_nodes.append(node["name"])
+    return start_nodes, step_nodes, None
+
+
+def remove_flow_steps(folder_path, target_image):
+    """移除所有节点中引用指定图片的非首条步骤，保存并返回移除数量。
+
+    开始图片（首条步骤）保持不动；由调用方先用 find_flow_references 判断。
+    """
+    nodes = load_flow_config(folder_path)
+    removed = 0
+    for node in nodes:
+        kept = [
+            step for index, step in enumerate(node["steps"])
+            if index == 0 or step["image"] != target_image
+        ]
+        removed += len(node["steps"]) - len(kept)
+        node["steps"] = kept
+    save_flow_config(folder_path, nodes)
+    return removed
+
+
 class FlowNodeImagesDialog(QtWidgets.QDialog):
     """多选模板图片，按列表勾选顺序一键生成流程节点。"""
 

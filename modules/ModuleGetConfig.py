@@ -141,7 +141,7 @@ class ReadConfigFile:
         return list(other_setting)
 
     def read_multi_open_info(self):
-        """读取“程序多开”配置：[multi_open] program_path / instance_count / interval_seconds / isolate / use_v5 / v5_path"""
+        """读取“程序多开”配置：[multi_open] program_path / instance_count / interval_seconds / use_v5 / v5_path"""
         config_ini = ConfigParser(interpolation=None)
 
         if not exists(self.file_path):
@@ -149,7 +149,7 @@ class ReadConfigFile:
 
         config_ini.read(self.file_path, encoding="utf-8-sig")
         if not config_ini.has_section("multi_open"):
-            return "", 2, 3.0, True, False, ""
+            return "", 2, 3.0, False, ""
 
         program_path = config_ini.get("multi_open", "program_path", fallback="")
         try:
@@ -167,26 +167,21 @@ class ReadConfigFile:
         interval_seconds = max(0.1, min(600.0, interval_seconds))
 
         try:
-            isolate = config_ini.getboolean("multi_open", "isolate", fallback=True)
-        except ValueError:
-            isolate = True
-        try:
             use_v5 = config_ini.getboolean("multi_open", "use_v5", fallback=False)
         except ValueError:
             use_v5 = False
         v5_path = config_ini.get("multi_open", "v5_path", fallback="")
-        return program_path, instance_count, interval_seconds, isolate, use_v5, v5_path
+        return program_path, instance_count, interval_seconds, use_v5, v5_path
 
     def writ_config_multi_open(
         self,
         program_path,
         instance_count,
         interval_seconds=3.0,
-        isolate=True,
         use_v5=False,
         v5_path="",
     ):
-        """保存“程序多开”配置，保留其他 section 的注释"""
+        """保存“程序多开”配置，保留其他 section 的注释；清理已废弃的 isolate 键"""
         config_ini = ConfigParser(
             comment_prefixes='/', allow_no_value=True, interpolation=None
         )
@@ -197,6 +192,7 @@ class ReadConfigFile:
         config_ini.read(self.file_path, encoding="utf-8-sig")
         if not config_ini.has_section("multi_open"):
             config_ini.add_section("multi_open")
+        config_ini.remove_option("multi_open", "isolate")  # 隔离运行已移除
         config_ini.set("multi_open", "program_path", str(program_path or ""))
         config_ini.set(
             "multi_open", "instance_count", str(max(1, min(50, int(instance_count))))
@@ -206,7 +202,6 @@ class ReadConfigFile:
             "interval_seconds",
             str(max(0.1, min(600.0, float(interval_seconds)))),
         )
-        config_ini.set("multi_open", "isolate", "True" if isolate else "False")
         config_ini.set("multi_open", "use_v5", "True" if use_v5 else "False")
         config_ini.set("multi_open", "v5_path", str(v5_path or ""))
         with open(self.file_path, 'w', encoding="utf-8-sig") as config_file:

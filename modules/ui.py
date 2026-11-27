@@ -133,14 +133,6 @@ class Ui_MainWindow(object):
 
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(10)
-        self.multi_open_isolate = QtWidgets.QCheckBox()
-        self.multi_open_isolate.setObjectName("multi_open_isolate")
-        self.multi_open_isolate.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.multi_open_isolate.setChecked(True)
-        self.multi_open_isolate.setToolTip(
-            "每个实例使用独立 AppData/Temp 和独立启动路径；不能绕过目标程序的全局单实例锁"
-        )
-        row.addWidget(self.multi_open_isolate)
         row.addStretch(1)
         layout.addLayout(row)
 
@@ -280,14 +272,10 @@ class Ui_MainWindow(object):
         self.image_order_btn = QtWidgets.QPushButton()
         self.image_order_btn.setObjectName("image_order_btn")
         self.image_order_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.image_order_btn.setToolTip("调整当前目标图片文件夹内的识别顺序")
+        self.image_order_btn.setToolTip(
+            "管理当前目标模板图片：识别顺序、采集、删除、自定义mark"
+        )
         row.addWidget(self.image_order_btn)
-
-        self.capture_template_btn = QtWidgets.QPushButton()
-        self.capture_template_btn.setObjectName("capture_template_btn")
-        self.capture_template_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.capture_template_btn.setToolTip("抓取当前目标窗口/设备截图，框选区域保存为模板")
-        row.addWidget(self.capture_template_btn)
         row.addStretch(1)
         layout.addLayout(row)
 
@@ -305,32 +293,12 @@ class Ui_MainWindow(object):
         row.addWidget(self.select_targetpic_path_btn)
         layout.addLayout(row)
 
-        # ---- 行 6：自定义 mark 图片 ------------------------------- #
-        row = QtWidgets.QHBoxLayout()
-        row.setSpacing(10)
-        self.custom_mark_image_label = QtWidgets.QLabel()
-        self.custom_mark_image_label.setObjectName("custom_mark_image_label")
-        row.addWidget(self.custom_mark_image_label)
-
+        # ---- 自定义 mark 图片（状态持有者） ------------------------ #
+        # mark 设置已整合进“模板图片管理”对话框；此下拉框不再加入布局，
+        # 仅作为隐藏状态对象供配置读写与匹配线程读取（UI 参数第 18 项）。
         self.custom_mark_image = QtWidgets.QComboBox()
         self.custom_mark_image.setObjectName("custom_mark_image")
-        self.custom_mark_image.setSizeAdjustPolicy(
-            QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.custom_mark_image.setMinimumContentsLength(6)
-        self.custom_mark_image.setMinimumWidth(120)
-        self.custom_mark_image.setMaximumWidth(200)
         self.custom_mark_image.addItem("")
-        row.addWidget(self.custom_mark_image, 1)
-
-        self.custom_mark_image_preview = QtWidgets.QLabel("无预览")
-        self.custom_mark_image_preview.setObjectName("custom_mark_image_preview")
-        self.custom_mark_image_preview.setAlignment(QtCore.Qt.AlignCenter)
-        self.custom_mark_image_preview.setFixedSize(108, 76)
-        self.custom_mark_image_preview.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.custom_mark_image_preview.setToolTip("当前自定义 mark 图片预览")
-        row.addWidget(self.custom_mark_image_preview)
-        layout.addLayout(row)
 
         # ---- 行 6：进度计算方式 ------------------------------------- #
         row = QtWidgets.QHBoxLayout()
@@ -935,7 +903,6 @@ class Ui_MainWindow(object):
         self.label_multi_open_interval.setText(_translate("MainWindow", "间隔："))
         self.multi_open_interval.setSuffix(_translate("MainWindow", "秒"))
         self.btn_multi_open.setText(_translate("MainWindow", "运行多开"))
-        self.multi_open_isolate.setText(_translate("MainWindow", "隔离运行"))
         self.multi_open_use_v5.setText(_translate("MainWindow", "使用 V5 多开器"))
         self.btn_select_v5_path.setText(_translate("MainWindow", "选择 V5"))
         self.rd_btn_windows_mod.setText(_translate("MainWindow", "Windows程序"))
@@ -951,9 +918,6 @@ class Ui_MainWindow(object):
             self.select_target_path_mode_combobox.setItemText(idx, _translate("MainWindow", txt))
         self.show_target_path.setPlaceholderText(_translate("MainWindow", "自定义文件夹路径…"))
         self.select_targetpic_path_btn.setText(_translate("MainWindow", "自定义文件夹"))
-        self.custom_mark_image_label.setText(
-            _translate("MainWindow", "自定义 mark 图片：")
-        )
         self.custom_mark_image.setItemText(
             0, _translate("MainWindow", "不自定义")
         )
@@ -964,9 +928,8 @@ class Ui_MainWindow(object):
         self.show_handle_title.setPlaceholderText(
             _translate("MainWindow", "请输入窗体标题或选择窗体"))
         self.btn_select_handle.setText(_translate("MainWindow", "获取窗体"))
-        self.image_order_label.setText(_translate("MainWindow", "图片识别顺序："))
-        self.image_order_btn.setText(_translate("MainWindow", "调整顺序"))
-        self.capture_template_btn.setText(_translate("MainWindow", "采集模板"))
+        self.image_order_label.setText(_translate("MainWindow", "模板图片管理："))
+        self.image_order_btn.setText(_translate("MainWindow", "模板管理"))
         self.targetpic_path_btn.setText(_translate("MainWindow", "img文件夹"))
         self.label_18.setText(_translate("MainWindow", "坐标偏移："))
         self.label_19.setText(_translate("MainWindow", "个像素"))

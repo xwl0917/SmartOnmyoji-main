@@ -20,7 +20,7 @@
 4. 运行power shell 或 cmd ：python smart_onmyoji_start.py
 5. 手动编译可使用：pyinstaller --distpath Release/ -w -i logo.ico --clean .\smart_onmyoji_start.py
 
-python -m PyInstaller --distpath Release/ -w -i .\logo.ico --clean --collect-all PyQt5 --collect-all PyQt5.sip --add-data ".\img;img" --add-data ".\modules;modules" .\smart_onmyoji_start.py
+.\.venv\Scripts\python.exe -m PyInstaller --distpath Release/ -w -i .\logo.ico --clean --collect-all PyQt5 --collect-all PyQt5.sip --add-data ".\img;img" --add-data ".\modules;modules" .\smart_onmyoji_start.py
 ```
 ## <br/>🎁使用方法</br>
 - **使用前警告：请谨慎使用辅助脚本，所有不公平游戏行为都可能被官方检测导致封号（坐标偏移量越小、点击频率越快，越容易被检测）**
@@ -44,15 +44,13 @@ python -m PyInstaller --distpath Release/ -w -i .\logo.ico --clean --collect-all
 12. 选择脚本结束后操作，默认即可，字面意思
 13. 若你使用桌面版客户端，请勾选**桌面版防异常**，请打开配置文件**config.ini**修改window系统屏幕缩放率，即**[other_setting]** -> **srceen_scale_rate**
 14. 最后点击开始，即可运行并且输出运行日志
-15. 需要同时运行多个客户端时，可用“基础设置”最上方的“程序多开”：选择 `.exe` 程序路径、设置数量与运行间隔（默认 3 秒），点击“运行多开”；路径、数量和间隔会保存到 `config.ini` 的 `[multi_open]`。普通启动可勾选“隔离运行”；如果目标有全局单实例锁（例如阴阳师 `Launch.exe`），勾选“使用 V5 多开器（仅 32 位程序）”，点“选择 V5”指定 `V5.exe`，工具会写入 V5 的 `LastPath` 并自动点击“隔离打开程序”，V5 窗口需保持运行。
+15. 需要同时运行多个客户端时，可用“基础设置”最上方的“程序多开”：选择 `.exe` 程序路径、设置数量与运行间隔（默认 3 秒），点击“运行多开”；路径、数量和间隔会保存到 `config.ini` 的 `[multi_open]`。如果目标有全局单实例锁（例如阴阳师 `Launch.exe`），勾选“使用 V5 多开器（仅 32 位程序）”，点“选择 V5”指定 `V5.exe`，工具会写入 V5 的 `LastPath` 并自动点击“隔离打开程序”，V5 窗口需保持运行。
 
 ### 左侧设置与标记图片
 
 - 左侧设置分为“基础设置”“流程体”“高级设置”三个标签页，可切换查看完整设置项；窗口较小时仍可通过调整窗口大小查看内容。
 - 程序默认以“单开”模式启动；需要多开时，可在“基础设置”中切换为“多开”。
-- “基础设置”中的“自定义 mark 图片”可将当前主任务模板目录中的图片按 `mark` 标记处理（每轮最多点击一次），选择图片后可在下拉框旁预览。默认“不自定义”时，继续使用各模板 `img_pos.json` 中原有的标记。
-- 目标模板的识别顺序可在“基础设置 → 图片识别顺序”中调整：拖动列表或使用上移/下移，并可预览当前选中图片；保存后写入该目标目录的 `img_order.json`；新加入的图片默认排在末尾，下一次开始匹配时生效。
-- “基础设置 → 采集模板”可后台抓取当前目标窗口（ADB 模式抓取设备）的整屏截图，拖拽框选区域并命名后保存为当前目标目录的模板图；选择 flag 标记时会同步写入该目录的 `img_pos.json`，开始匹配后生效。
+- “基础设置 → 模板图片管理 → 模板管理”一站式管理当前目标模板目录：拖动/上移/下移调整识别顺序（保存写入 `img_order.json`）、预览选中图片、采集模板（后台抓取目标窗口/设备截图后框选保存，可选 flag 写入 `img_pos.json`）、删除模板图片（自动清理 `img_order.json` / `img_pos.json` / 流程体中的引用；被节点开始图片引用时会阻止并提示）、设为/取消自定义 mark（`★` 标记，每轮最多点击一次；不设置时使用各模板 `img_pos.json` 原有标记）。
 - 某张图片匹配成功后，下一轮从它在顺序中的下一张开始匹配；到列表末尾后回到第一张。这样不会每轮都从第一张重新开始。
 - “流程体”标签页可创建多个流程节点。每个节点首条规则的图片是开始图片；主循环优先识别所有节点开始图片，进入节点后按其步骤推进。节点内当前步骤的期望图片优先识别；期望图不在屏幕上时，其他节点的开始图片才会打断并切换节点。步骤末尾可设置跳转到其他节点，或返回主循环。节点可用“添加节点”逐步搭建，也可用“多选生成节点”按顺序勾选多张图片一键生成完整步骤链。
 

@@ -111,6 +111,21 @@ def save_image_order(folder_path, relative_order):
         json.dump(data, file, ensure_ascii=False, indent=2)
 
 
+def remove_image_order_entry(folder_path, relative_key):
+    """从 img_order.json 移除一个图片条目；文件不存在或损坏时保持原样。"""
+    order_path = path.join(folder_path, IMAGE_ORDER_FILE)
+    if not path.isfile(order_path):
+        return
+    data = load_image_order(folder_path)
+    key = _normalize_rel_path(relative_key)
+    remaining = [
+        item for item in data if _normalize_rel_path(item) != key
+    ]
+    # 仅在确实移除了条目时写盘；损坏文件（读出为空列表）不会被覆盖
+    if len(remaining) != len(data):
+        save_image_order(folder_path, remaining)
+
+
 class GetTargetPicInfo:
     def __init__(self, target_modname, custom_target_path, compress_val=1, compute_sift=True):
         super(GetTargetPicInfo, self).__init__()

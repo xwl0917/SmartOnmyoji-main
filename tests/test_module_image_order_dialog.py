@@ -4,7 +4,10 @@ import unittest
 
 from PyQt5 import QtGui, QtWidgets
 
-from modules.ModuleImageOrderDialog import ImageOrderDialog
+from modules.ModuleImageOrderDialog import (
+    ImageOrderDialog,
+    TemplateManagerDialog,
+)
 
 
 class ImageOrderDialogTests(unittest.TestCase):
@@ -57,6 +60,58 @@ class ImageOrderDialogTests(unittest.TestCase):
             self.dialog.list_widget.item(1).text(),
             "first.png",
         )
+
+
+class TemplateManagerDialogTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.application = QtWidgets.QApplication.instance()
+        if cls.application is None:
+            cls.application = QtWidgets.QApplication([])
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.folder_path = self.temp_dir.name
+        image = QtGui.QImage(24, 16, QtGui.QImage.Format_RGB32)
+        image.fill(QtGui.QColor("red"))
+        image.save(os.path.join(self.folder_path, "first.png"))
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _build_dialog(self, **kwargs):
+        return TemplateManagerDialog(self.folder_path, **kwargs)
+
+    def test_construction_updates_hint_and_mark_state(self):
+        # 回归：基类提示标签必须存为 self.hint，子类 __init__ 会改写其文本
+        dialog = self._build_dialog(current_mark_name="")
+        self.assertIn("★", dialog.hint.text())
+        self.assertIn("未设置", dialog.mark_status_label.text())
+        dialog.close()
+
+    def test_mark_set_callback_receives_stem_and_prefixes_item(self):
+        received = []
+        dialog = self._build_dialog(
+            current_mark_name="",
+            on_mark_set=received.append,
+        )
+        dialog.list_widget.setCurrentRow(0)
+        dialog._set_mark(False)
+
+        self.assertEqual(received, ["first"])
+        self.assertTrue(dialog.list_widget.item(0).text().startswith("★ "))
+        self.assertIn("first", dialog.mark_status_label.text())
+
+        dialog._set_mark(True)
+        self.assertEqual(received, ["first", ""])
+        self.assertFalse(dialog.list_widget.item(0).text().startswith("★"))
+        dialog.close()
+
+    def test_construction_without_mark_shows_star_on_current_mark(self):
+        dialog = self._build_dialog(current_mark_name="first")
+        self.assertTrue(dialog.list_widget.item(0).text().startswith("★ "))
+        self.assertIn("first", dialog.mark_status_label.text())
+        dialog.close()
 
 
 if __name__ == "__main__":

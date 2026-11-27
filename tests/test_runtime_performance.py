@@ -69,7 +69,7 @@ class OtherSettingCacheTests(unittest.TestCase):
     def test_multi_open_write_invalidates_cache(self):
         self._reader().read_config_other_setting()
         self.assertIsNotNone(config_module._OTHER_SETTING_CACHE)
-        self._reader().writ_config_multi_open("", 2, 3.0, True, False, "")
+        self._reader().writ_config_multi_open("", 2, 3.0, False, "")
         self.assertIsNone(config_module._OTHER_SETTING_CACHE)
 
 

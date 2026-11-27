@@ -3,7 +3,6 @@
 # @Version : Python3.7.6
 # @MIT License Copyright (c) 2022 ACE
 
-import hashlib
 import json
 import os
 import pathlib
@@ -17,7 +16,7 @@ from time import sleep
 import urllib.request
 
 import PyQt5.QtCore
-from PyQt5.QtGui import QIcon, QImageReader, QPixmap
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 from pynput.mouse import Listener
 from win32gui import GetClientRect, GetParent, IsWindow, ScreenToClient, WindowFromPoint
@@ -25,7 +24,7 @@ from win32gui import GetClientRect, GetParent, IsWindow, ScreenToClient, WindowF
 from modules.ModuleGetConfig import ReadConfigFile
 from modules.ModuleHandleSet import HandleSet
 from modules.ModuleGetTargetInfo import GetTargetPicInfo
-from modules.ModuleImageOrderDialog import ImageOrderDialog
+from modules.ModuleImageOrderDialog import TemplateManagerDialog
 from modules.ModuleRunThread import MatchingThread, GetActiveWindowThread
 from modules.ModuleTemplateCapture import TemplateCaptureDialog, capture_screen_image
 from modules.ModuleV5MultiOpen import V5MultiOpen, is_32bit_exe
@@ -162,17 +161,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             multi_open_path,
             multi_open_count,
             multi_open_interval,
-            multi_open_isolate,
             multi_open_use_v5,
             multi_open_v5_path,
         ) = ReadConfigFile().read_multi_open_info()
         self.multi_open_path.setText(str(multi_open_path or ""))
         self.multi_open_count.setValue(int(multi_open_count))
         self.multi_open_interval.setValue(float(multi_open_interval))
-        self.multi_open_isolate.setChecked(bool(multi_open_isolate))
         self.multi_open_use_v5.setChecked(bool(multi_open_use_v5))
         self._v5_path = self._resolve_v5_path(multi_open_v5_path)
-        self._update_multi_open_mode()
         self._update_v5_tooltip()
 
         # 设置界面上显示的匹配目标文件夹的选项名称
@@ -195,12 +191,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.config_set_btn.clicked.connect(self.__on_click_btn_config_set)
         self.targetpic_path_btn.clicked.connect(self.__on_click_btn_target_pic_folder_open)
         self.image_order_btn.clicked.connect(self.__on_click_btn_image_order)
-        self.capture_template_btn.clicked.connect(
-            self.__on_click_btn_capture_template
-        )
-        self.custom_mark_image.currentIndexChanged.connect(
-            self._update_custom_mark_preview
-        )
         self.btn_select_multi_open_path.clicked.connect(
             self.__on_click_btn_select_multi_open_path
         )
@@ -212,10 +202,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.multi_open_interval.valueChanged.connect(
             lambda _value: self._save_multi_open_config()
         )
-        self.multi_open_isolate.stateChanged.connect(
+        self.multi_open_use_v5.stateChanged.connect(
             lambda _state: self._save_multi_open_config()
         )
-        self.multi_open_use_v5.stateChanged.connect(self._on_multi_open_mode_changed)
         self.btn_select_v5_path.clicked.connect(self.__on_click_btn_select_v5_path)
         self.multi_open_finished_signal.connect(self._on_multi_open_finished)
 
@@ -440,6 +429,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.show_target_path.setText(custom_path)  # 显示路径
             self._refresh_main_target_images()
 
+    # 模板管理按钮：识别顺序、采集、删除、自定义mark 一站式管理
     def __on_click_btn_image_order(self):
         target_mode = self.select_target_path_mode_combobox.currentText()
         custom_path = self.show_target_path.text() if target_mode == "自定义" else ""
@@ -447,26 +437,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             target_mode, custom_path
         ).get_target_folder_path()
         if not folder_path or not os.path.isdir(folder_path):
-            print("<br>图片识别顺序：请先选择有效的目标模板文件夹！")
+            print("<br>模板图片管理：请先选择有效的目标模板文件夹！")
             return
-        dialog = ImageOrderDialog(folder_path, self)
+        dialog = TemplateManagerDialog(
+            folder_path,
+            current_mark_name=self.custom_mark_image.currentData() or "",
+            on_mark_set=self._set_custom_mark_image,
+            capture_opener=self._open_capture_dialog,
+            parent=self,
+        )
         if dialog.exec_():
             print(
-                f"<br>图片识别顺序已保存：[ {folder_path} ]，"
+                f"<br>模板图片管理：识别顺序已保存 [ {folder_path} ]，"
                 "下次开始匹配时生效。"
             )
 
-    # 采集模板按钮：抓取目标画面，框选区域保存为当前目标目录的模板
-    def __on_click_btn_capture_template(self):
-        target_mode = self.select_target_path_mode_combobox.currentText()
-        custom_path = self.show_target_path.text() if target_mode == "自定义" else ""
-        folder_path = GetTargetPicInfo(
-            target_mode, custom_path
-        ).get_target_folder_path()
-        if not folder_path or not os.path.isdir(folder_path):
-            print("<br>采集模板：请先选择有效的目标模板文件夹！")
-            return
+    def _set_custom_mark_image(self, mark_name):
+        """管理对话框的 mark 回调：写入隐藏的 custom_mark_image 下拉框"""
+        index = self.custom_mark_image.findData(mark_name or "")
+        if index >= 0:
+            self.custom_mark_image.setCurrentIndex(index)
 
+    # 采集模板：抓取目标画面，框选区域保存为当前目标目录的模板；
+    # 供管理对话框的 capture_opener 回调调用，返回保存路径或 None
+    def _open_capture_dialog(self, folder_path):
         connect_mod = (
             "Windows程序" if self.rd_btn_windows_mod.isChecked() else "Android-手机"
         )
@@ -486,7 +480,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             image, source = capture_screen_image(connect_mod, hwnd)
         except ValueError as error:
             print("<br>采集模板：%s" % error)
-            return
+            return None
 
         dialog = TemplateCaptureDialog(folder_path, image, source, self)
         if dialog.exec_() and dialog.saved_path:
@@ -498,6 +492,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     "，flag 已写入 img_pos.json" if dialog.saved_flag else "",
                 )
             )
+            return dialog.saved_path
+        return None
 
     # ---- 程序多开（启动外部程序） ---------------------------------- #
     def _save_multi_open_config(self):
@@ -506,7 +502,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.multi_open_path.text().strip(),
                 int(self.multi_open_count.value()),
                 float(self.multi_open_interval.value()),
-                bool(self.multi_open_isolate.isChecked()),
                 bool(self.multi_open_use_v5.isChecked()),
                 self._v5_path or "",
             )
@@ -534,20 +529,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return abspath(configured)
         return abspath(candidates[1])
 
-    def _update_multi_open_mode(self):
-        use_v5 = bool(self.multi_open_use_v5.isChecked())
-        self.multi_open_isolate.setEnabled(not use_v5)
-
     def _update_v5_tooltip(self):
         path = self._v5_path or ""
         self.multi_open_use_v5.setToolTip(
             "调用 V5 程序多开器实现 Hook 级隔离；仅支持 32 位目标程序。\nV5: %s" % path
         )
         self.btn_select_v5_path.setToolTip("选择 V5.exe（当前：%s）" % path)
-
-    def _on_multi_open_mode_changed(self, _state):
-        self._update_multi_open_mode()
-        self._save_multi_open_config()
 
     def __on_click_btn_select_v5_path(self):
         start_dir = dirname(dirname(__file__))
@@ -564,7 +551,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if v5_path:
             self._v5_path = abspath(v5_path)
             self.multi_open_use_v5.setChecked(True)
-            self._update_multi_open_mode()
             self._update_v5_tooltip()
             self._save_multi_open_config()
 
@@ -596,7 +582,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         instance_count = int(self.multi_open_count.value())
         interval_seconds = float(self.multi_open_interval.value())
-        isolate = bool(self.multi_open_isolate.isChecked())
         use_v5 = bool(self.multi_open_use_v5.isChecked())
 
         if use_v5:
@@ -617,7 +602,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.multi_open_path.setEnabled(False)
             self.multi_open_count.setEnabled(False)
             self.multi_open_interval.setEnabled(False)
-            self.multi_open_isolate.setEnabled(False)
             self.multi_open_use_v5.setEnabled(False)
             self.btn_select_v5_path.setEnabled(False)
             print(
@@ -637,17 +621,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.multi_open_path.setEnabled(False)
         self.multi_open_count.setEnabled(False)
         self.multi_open_interval.setEnabled(False)
-        self.multi_open_isolate.setEnabled(False)
         self.multi_open_use_v5.setEnabled(False)
         self.btn_select_v5_path.setEnabled(False)
         print(
             f"<br>程序多开：开始运行 [ {os.path.basename(program_path)} ]，"
-            f"数量 [ {instance_count} ]，间隔 [ {interval_seconds:g} ] 秒，"
-            f"隔离 [ {'开' if isolate else '关'} ]"
+            f"数量 [ {instance_count} ]，间隔 [ {interval_seconds:g} ] 秒"
         )
         threading.Thread(
             target=self._launch_programs,
-            args=(program_path, instance_count, interval_seconds, isolate),
+            args=(program_path, instance_count, interval_seconds),
             daemon=True,
         ).start()
 
@@ -668,21 +650,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             except RuntimeError:
                 pass
 
-    def _launch_programs(self, program_path, instance_count, interval_seconds, isolate):
-        launched = []  # (index, process, sandbox_dir)
+    def _launch_programs(self, program_path, instance_count, interval_seconds):
+        launched = []  # (index, process)
         reported_exits = set()
         try:
             for index in range(1, instance_count + 1):
                 try:
-                    process, sandbox = self._launch_program(
-                        program_path, isolate, index
-                    )
-                    launched.append((index, process, sandbox))
-                    sandbox_text = f"，隔离目录 [ {sandbox} ]" if sandbox else ""
+                    process = self._launch_program(program_path)
+                    launched.append((index, process))
                     print(
                         f"<br>程序多开：已运行第 [ {index} / {instance_count} ] 个："
                         f"{os.path.basename(program_path)}，PID [ {process.pid} ]"
-                        f"{sandbox_text}"
                     )
                 except Exception as error:
                     print(
@@ -691,7 +669,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if index < instance_count:
                     sleep(interval_seconds)
                     # 检查前面已启动的进程是否还活着，便于确认目标程序是否只允许单实例
-                    for launched_index, launched_process, _ in launched:
+                    for launched_index, launched_process in launched:
                         if (
                             launched_index not in reported_exits
                             and launched_process.poll() is not None
@@ -704,7 +682,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         finally:
             alive = [
                 index
-                for index, process, _ in launched
+                for index, process in launched
                 if process.poll() is None
             ]
             print(
@@ -715,14 +693,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 print(
                     "<br>程序多开：提示：有进程已退出。若目标程序是单实例启动器，"
                     "重复运行可能会关闭前一个实例，或启动后自动退出；"
-                    "这类程序需要其自带的多开入口，或 V5 那种 Hook 级隔离，"
-                    "普通启动参数/目录隔离无法绕过全局互斥锁。"
-                )
-            if isolate:
-                print(
-                    "<br>程序多开：隔离目录位于 "
-                    "%LOCALAPPDATA%\\SmartOnmyoji\\MultiOpen\\<程序名>_<hash>\\instance_N，"
-                    "可手动删除。"
+                    "这类程序需要其自带的多开入口，或 V5 那种 Hook 级隔离。"
                 )
             try:
                 self.multi_open_finished_signal.emit()
@@ -730,81 +701,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 pass
 
     @staticmethod
-    def _prepare_isolated_launch(program_path, instance_index):
-        """为单个实例准备独立 AppData/Temp 与独立启动路径（目录 junction）。"""
-        program_dir = dirname(program_path) or "."
-        exe_name = os.path.basename(program_path)
-        program_key = hashlib.md5(
-            os.path.normcase(os.path.abspath(program_path)).encode("utf-8")
-        ).hexdigest()[:8]
-        base_root = (
-            os.environ.get("LOCALAPPDATA")
-            or os.environ.get("TEMP")
-            or program_dir
-        )
-        sandbox = os.path.join(
-            base_root,
-            "SmartOnmyoji",
-            "MultiOpen",
-            "%s_%s" % (os.path.splitext(exe_name)[0], program_key),
-            "instance_%d" % instance_index,
-        )
-        appdata = os.path.join(sandbox, "AppData", "Roaming")
-        localappdata = os.path.join(sandbox, "AppData", "Local")
-        temp_dir = os.path.join(sandbox, "Temp")
-        for directory in (sandbox, appdata, localappdata, temp_dir):
-            os.makedirs(directory, exist_ok=True)
-
-        link_path = os.path.join(sandbox, "app")
-        if not os.path.exists(link_path):
-            result = None
-            try:
-                result = subprocess.run(
-                    ["cmd", "/c", "mklink", "/J", link_path, program_dir],
-                    capture_output=True,
-                    text=True,
-                    encoding="mbcs",
-                    errors="replace",
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                )
-            except Exception as error:
-                print(f"<br>程序多开：创建隔离启动路径失败：{error}")
-            if result is None or result.returncode != 0 or not os.path.exists(link_path):
-                detail = ""
-                if result is not None:
-                    detail = (result.stderr or result.stdout or "").strip()
-                if detail:
-                    print(f"<br>程序多开：隔离启动路径创建失败，回退为仅 AppData/Temp 隔离：{detail}")
-                link_path = program_dir
-
-        launch_path = os.path.join(link_path, exe_name)
-        env = os.environ.copy()
-        env["APPDATA"] = appdata
-        env["LOCALAPPDATA"] = localappdata
-        env["TEMP"] = temp_dir
-        env["TMP"] = temp_dir
-        env["SMARTONMYOJI_INSTANCE"] = str(instance_index)
-        return launch_path, link_path, env, sandbox
-
-    @staticmethod
-    def _launch_program(program_path, isolate=False, instance_index=1):
+    def _launch_program(program_path):
         if os.path.splitext(program_path)[1].lower() != ".exe":
             raise ValueError("只支持 .exe 程序")
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        if isolate:
-            launch_path, cwd, env, sandbox = MainWindow._prepare_isolated_launch(
-                program_path, instance_index
-            )
-            process = subprocess.Popen(
-                [launch_path], cwd=cwd, env=env, creationflags=creationflags
-            )
-            return process, sandbox
-        process = subprocess.Popen(
+        return subprocess.Popen(
             [program_path],
             cwd=dirname(program_path) or None,
             creationflags=creationflags,
         )
-        return process, ""
 
     def _on_multi_open_finished(self):
         self.btn_multi_open.setEnabled(True)
@@ -812,10 +717,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.multi_open_path.setEnabled(True)
         self.multi_open_count.setEnabled(True)
         self.multi_open_interval.setEnabled(True)
-        self.multi_open_isolate.setEnabled(True)
         self.multi_open_use_v5.setEnabled(True)
         self.btn_select_v5_path.setEnabled(True)
-        self._update_multi_open_mode()
 
     def _refresh_main_target_images(self, preferred_mark_name=None):
         if preferred_mark_name is None:
@@ -859,39 +762,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         selected_index = combo.findData(preferred_mark_name or "")
         combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
         combo.blockSignals(False)
-        self._update_custom_mark_preview()
 
         self.flow_body_editor.set_target_folder(target_folder)
-
-    def _update_custom_mark_preview(self, _index=None):
-        preview = self.custom_mark_image_preview
-        image_path = self.custom_mark_image.currentData(
-            PyQt5.QtCore.Qt.UserRole + 1
-        )
-        if not image_path:
-            preview.setPixmap(QPixmap())
-            preview.setText("无预览")
-            preview.setToolTip("当前自定义 mark 图片预览")
-            return
-
-        reader = QImageReader(image_path)
-        reader.setAutoTransform(True)
-        source_size = reader.size()
-        if source_size.isValid():
-            reader.setScaledSize(
-                source_size.scaled(
-                    PyQt5.QtCore.QSize(100, 68),
-                    PyQt5.QtCore.Qt.KeepAspectRatio,
-                )
-            )
-        image = reader.read()
-        if image.isNull():
-            preview.setPixmap(QPixmap())
-            preview.setText("图片无法预览")
-        else:
-            preview.setText("")
-            preview.setPixmap(QPixmap.fromImage(image))
-        preview.setToolTip(image_path)
 
     # 配置文件修改按钮
     @staticmethod
@@ -956,7 +828,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.rd_btn_android_adb.setEnabled(bool_val)
         self.show_target_path.setEnabled(bool_val)
         self.select_targetpic_path_btn.setEnabled(bool_val)
-        self.custom_mark_image.setEnabled(bool_val)
         self.interval_seconds.setEnabled(bool_val)
         self.interval_seconds_max.setEnabled(bool_val)
         self.loop_min.setEnabled(bool_val)
