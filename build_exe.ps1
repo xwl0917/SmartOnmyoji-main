@@ -5,9 +5,11 @@
 
 .DESCRIPTION
     The script:
-      1. checks the project layout and locates a Python 3.9-3.13 interpreter;
-      2. creates/uses an isolated virtual environment (default: .venv-build);
-      3. installs requirements.txt and PyInstaller;
+      1. checks the project layout and locates a supported Python interpreter;
+      2. creates/uses a virtual environment (default: .venv);
+      3. reuses installed packages for an existing Python 3.7 legacy venv, or
+         installs requirements.txt and PyInstaller for Python 3.9-3.13, keeping
+         pip's temporary files inside the venv and removing them afterward;
       4. runs PyInstaller with smart_onmyoji_start.spec;
       5. verifies the packaged assets, removes __pycache__ and local click logs;
       6. optionally creates Release\SmartOnmyoji-<version>-win64.zip.
@@ -18,10 +20,12 @@
 .PARAMETER Python
     Base interpreter used to create the build venv, e.g. "py" or
     "C:\Python312\python.exe". When omitted the script tries py -3.13 ... -3.9
-    and then "python". Ignored when the venv already exists.
+    and then "python". Ignored when the venv already exists. New venvs require
+    Python 3.9-3.13; an existing Python 3.7 venv is reused without pip installs.
 
 .PARAMETER VenvDir
-    Build virtual environment directory, relative to the project root.
+    Build virtual environment directory, relative to the project root
+    (default: .venv).
 
 .PARAMETER OutDir
     PyInstaller dist directory, relative to the project root.
@@ -64,7 +68,7 @@
 [CmdletBinding()]
 param(
     [string]$Python = "",
-    [string]$VenvDir = ".venv-build",
+    [string]$VenvDir = ".venv",
     [string]$OutDir = "Release",
     [string]$IndexUrl = "",
     [switch]$SkipInstall,
@@ -187,7 +191,7 @@ if ($configText -match '(?m)^\s*temporary_custom_target_path\s*=\s*[A-Za-z]:[\\/
 # ---------------------------------------------------------------------------
 # 2. Locate a supported interpreter / venv
 # ---------------------------------------------------------------------------
-Write-Step "Locating Python 3.9-3.13"
+Write-Step "Selecting build interpreter"
 
 $venvDirPath = Join-Path $script:Root $VenvDir
 $venvPython = Join-Path $venvDirPath "Scripts\python.exe"
@@ -195,6 +199,7 @@ $baseExe = $null
 $baseArgs = @()
 $baseVersion = $null
 $venvVersion = $null
+$legacyVenv = $false
 
 if ($RecreateVenv -and (Test-Path -LiteralPath $venvDirPath)) {
     Remove-ProjectPath $venvDirPath
@@ -205,10 +210,14 @@ if (Test-Path -LiteralPath $venvPython) {
     if (-not $venvVersion) {
         Fail ("Existing venv is broken: " + $venvPython + ". Delete it or use -RecreateVenv.")
     }
-    if (-not (Test-SupportedPython $venvVersion)) {
-        Fail ("Existing venv uses Python " + $venvVersion + "; 3.9-3.13 is required. Use -RecreateVenv -Python <exe>.")
+    if (-not (Test-SupportedPython $venvVersion) -and $venvVersion -ne [version]"3.7") {
+        Fail ("Existing venv uses Python " + $venvVersion + "; use Python 3.7 for the legacy environment or 3.9-3.13 for the current requirements.")
     }
+    $legacyVenv = ($venvVersion -eq [version]"3.7")
     Write-Host ("  venv         : " + $venvPython + " (Python " + $venvVersion + ")")
+    if ($legacyVenv) {
+        Write-Host "  build mode   : legacy; reusing installed packages without pip/network access"
+    }
 } else {
     if ($Python) {
         $baseExe = $Python
@@ -267,7 +276,7 @@ if ($DryRun) {
         Write-Host ("  interpreter : " + $venvPython + " (will be created with Python " + $baseVersion + ")")
     }
     Write-Host ("  output exe  : " + $exePath)
-    Write-Host ("  install deps: " + (-not $SkipInstall))
+    Write-Host ("  install deps: " + (-not ($SkipInstall -or $legacyVenv)))
     Write-Host ("  create zip  : " + (-not $NoZip))
     Write-Host ("  strict tmpl : " + $StrictTemplates)
     Write-Host ("  self-check  : " + (-not $SkipSelfCheck))
@@ -335,34 +344,63 @@ if ($IndexUrl) {
     }
 }
 
-if ($SkipInstall) {
-    Write-Host "  -SkipInstall: reusing packages already present in the venv."
+if ($legacyVenv -or $SkipInstall) {
+    if ($legacyVenv) {
+        Write-Host "  Python 3.7 legacy venv: reusing installed packages; pip install is skipped."
+        if ($IndexUrl) {
+            Write-Host "  -IndexUrl is ignored for the legacy venv."
+        }
+    } else {
+        Write-Host "  -SkipInstall: reusing packages already present in the venv."
+    }
     & $venvPython -c "import PyInstaller; print('  PyInstaller', PyInstaller.__version__)"
     if ($LASTEXITCODE -ne 0) {
-        Fail ("PyInstaller is missing in " + $VenvDir + ". Run without -SkipInstall, or install it manually.")
+        Fail ("PyInstaller is missing in " + $VenvDir + ". Install a version compatible with this Python environment and retry.")
     }
 } else {
-    Write-Host "  upgrading pip ..."
-    & $venvPython @pipArgs --upgrade pip
-    if ($LASTEXITCODE -ne 0) {
-        Fail "pip upgrade failed. Check the network or pass -IndexUrl."
-    }
+    $pipTempDir = Join-Path $venvDirPath ("pip-temp-" + [Guid]::NewGuid().ToString("N"))
+    $originalTemp = $env:TEMP
+    $originalTmp = $env:TMP
+    $originalTmpDir = $env:TMPDIR
+    try {
+        New-Item -ItemType Directory -Path $pipTempDir -Force | Out-Null
+        $env:TEMP = $pipTempDir
+        $env:TMP = $pipTempDir
+        $env:TMPDIR = $pipTempDir
 
-    Write-Host "  installing requirements.txt ..."
-    & $venvPython @pipArgs -r (Join-Path $script:Root "requirements.txt")
-    if ($LASTEXITCODE -ne 0) {
-        Fail "pip install -r requirements.txt failed. Check the network or pass -IndexUrl."
-    }
+        Write-Host "  upgrading pip ..."
+        & $venvPython @pipArgs --upgrade pip
+        if ($LASTEXITCODE -ne 0) {
+            Fail "pip upgrade failed. Check the network or pass -IndexUrl."
+        }
 
-    Write-Host "  installing PyInstaller ..."
-    & $venvPython @pipArgs "pyinstaller>=6.11"
-    if ($LASTEXITCODE -ne 0) {
-        Fail "PyInstaller installation failed."
+        Write-Host "  installing requirements.txt ..."
+        & $venvPython @pipArgs -r (Join-Path $script:Root "requirements.txt")
+        if ($LASTEXITCODE -ne 0) {
+            Fail "pip install -r requirements.txt failed. Check the network or pass -IndexUrl."
+        }
+
+        Write-Host "  installing PyInstaller ..."
+        & $venvPython @pipArgs "pyinstaller>=6.11"
+        if ($LASTEXITCODE -ne 0) {
+            Fail "PyInstaller installation failed."
+        }
+    } finally {
+        $env:TEMP = $originalTemp
+        $env:TMP = $originalTmp
+        if ($null -eq $originalTmpDir) {
+            Remove-Item Env:TMPDIR -ErrorAction SilentlyContinue
+        } else {
+            $env:TMPDIR = $originalTmpDir
+        }
+        if (Test-Path -LiteralPath $pipTempDir) {
+            Remove-Item -LiteralPath $pipTempDir -Recurse -Force
+        }
     }
 }
 
 Write-Step "Verifying runtime imports"
-$probe = "import cv2, PIL, PyQt5, pynput, pyautogui, numpy, win32gui, win32ui, win32com.client; print('  cv2', cv2.__version__); print('  numpy', numpy.__version__); print('  Pillow', PIL.__version__)"
+$probe = "import cv2, PIL, PyQt5, pynput, pyautogui, numpy, win32gui, win32ui; from modules.ModuleWin32Com import configure_com_cache; configure_com_cache(); import win32com.client; print('  cv2', cv2.__version__); print('  numpy', numpy.__version__); print('  Pillow', PIL.__version__)"
 & $venvPython -c $probe
 if ($LASTEXITCODE -ne 0) {
     Fail "Runtime import check failed. See the error above."
